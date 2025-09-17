@@ -19,17 +19,17 @@ interface SidebarProps {
 }
 
 const navigation = [
-  { name: 'Dashboard', href: '/parent', icon: Home },
-  { name: 'Children', href: '/children', icon: Users },
-  { name: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { name: 'Activity', href: '/activity', icon: Activity },
-  { name: 'Bank', href: '/bank', icon: Banknote },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Dashboard', href: '/parent', icon: Home, description: 'Overview & quick actions' },
+  { name: 'Children', href: '/parent', icon: Users, description: 'Manage children' },
+  { name: 'Tasks', href: '/parent', icon: CheckSquare, description: 'Task management' },
+  { name: 'Activity', href: '/parent', icon: Activity, description: 'Transaction history' },
+  { name: 'Bank', href: '/bank', icon: Banknote, description: 'Cash-out requests' },
+  { name: 'Settings', href: '/settings', icon: Settings, description: 'System configuration' },
 ]
 
 const childNavigation = [
-  { name: 'My Dashboard', href: '/child', icon: Home },
-  { name: 'Bank', href: '/child/bank', icon: Banknote },
+  { name: 'My Dashboard', href: '/child', icon: Home, description: 'My points & tasks' },
+  { name: 'Bank', href: '/child/bank', icon: Banknote, description: 'Cash-out requests' },
 ]
 
 export function Sidebar({ isOpen, onClose, isChildView = false }: SidebarProps) {
@@ -80,14 +80,20 @@ export function Sidebar({ isOpen, onClose, isChildView = false }: SidebarProps) 
                   to={item.href}
                   onClick={onClose}
                   className={cn(
-                    "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                    "group flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                     isActive
                       ? "bg-primary-100 text-primary-700"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                   )}
+                  title={item.description}
                 >
                   <item.icon className="h-5 w-5" />
-                  <span>{item.name}</span>
+                  <div className="flex-1">
+                    <span>{item.name}</span>
+                    <div className="text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {item.description}
+                    </div>
+                  </div>
                 </Link>
               )
             })}

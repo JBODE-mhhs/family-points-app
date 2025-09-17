@@ -1,6 +1,9 @@
 import * as React from "react"
 import { Button } from "../ui/button"
 import { Badge } from "../ui/badge"
+import { Search } from "../ui/search"
+import { QuickActions } from "../ui/quick-actions"
+import { Breadcrumb } from "../ui/breadcrumb"
 import { useTheme } from "../theme-provider"
 import { 
   Menu, 
@@ -54,6 +57,12 @@ export function TopBar({ onMenuClick, isChildView = false, notificationCount = 0
 
         {/* Right side */}
         <div className="flex items-center space-x-2">
+          {/* Search */}
+          <Search />
+          
+          {/* Quick Actions */}
+          <QuickActions />
+          
           {/* Notifications */}
           {notificationCount > 0 && (
             <Button variant="ghost" size="icon" className="relative">

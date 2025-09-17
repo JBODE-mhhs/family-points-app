@@ -7,6 +7,8 @@ import BankDay from './pages/BankDay'
 import InstallPrompt from './components/InstallPrompt'
 import { AppShell } from './components/layout/app-shell'
 import { ThemeProvider } from './components/theme-provider'
+import { ErrorBoundary } from './components/error-boundary'
+import { PerformanceMonitor } from './components/performance-monitor'
 import { useApp } from './state/store'
 
 export default function App(){
@@ -27,19 +29,22 @@ export default function App(){
     }
     
     return (
-      <ThemeProvider defaultTheme="light" storageKey="family-points-theme">
-        <InstallPrompt />
-        <AppShell>
-          <Routes>
-            <Route path="/" element={<Navigate to="/parent" replace/>} />
-            <Route path="/parent" element={<ParentDashboard/>} />
-            <Route path="/child/:childId" element={<ChildDashboard/>} />
-            <Route path="/settings" element={<Settings/>} />
-            <Route path="/bank" element={<BankDay/>} />
-            <Route path="*" element={<Navigate to="/" replace/>} />
-          </Routes>
-        </AppShell>
-      </ThemeProvider>
+      <ErrorBoundary>
+        <ThemeProvider defaultTheme="light" storageKey="family-points-theme">
+          <InstallPrompt />
+          <AppShell>
+            <Routes>
+              <Route path="/" element={<Navigate to="/parent" replace/>} />
+              <Route path="/parent" element={<ParentDashboard/>} />
+              <Route path="/child/:childId" element={<ChildDashboard/>} />
+              <Route path="/settings" element={<Settings/>} />
+              <Route path="/bank" element={<BankDay/>} />
+              <Route path="*" element={<Navigate to="/" replace/>} />
+            </Routes>
+          </AppShell>
+          <PerformanceMonitor />
+        </ThemeProvider>
+      </ErrorBoundary>
     )
   } catch (error) {
     console.error('App error:', error)

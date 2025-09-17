@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom"
 import { cn } from "../../lib/utils"
 import { Sidebar } from "./sidebar"
 import { TopBar } from "./topbar"
+import { Breadcrumb } from "../ui/breadcrumb"
 
 interface AppShellProps {
   children: React.ReactNode
@@ -44,6 +45,10 @@ export function AppShell({ children }: AppShellProps) {
         {/* Page content */}
         <main className="flex-1">
           <div className="p-4 lg:p-6">
+            {/* Breadcrumbs */}
+            <div className="mb-6">
+              <Breadcrumb />
+            </div>
             {children}
           </div>
         </main>
