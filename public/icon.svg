@@ -1,0 +1,37 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="star" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#bg)" stroke="#ffffff" stroke-width="8"/>
+  
+  <!-- Star icon -->
+  <g transform="translate(256, 256)">
+    <!-- Main star -->
+    <path d="M0,-80 L24,-24 L80,-24 L32,8 L48,64 L0,32 L-48,64 L-32,8 L-80,-24 L-24,-24 Z" fill="url(#star)" stroke="#ffffff" stroke-width="4"/>
+    
+    <!-- Sparkles -->
+    <circle cx="-60" cy="-60" r="8" fill="#ffffff" opacity="0.9"/>
+    <circle cx="60" cy="-60" r="6" fill="#ffffff" opacity="0.8"/>
+    <circle cx="-40" cy="40" r="6" fill="#ffffff" opacity="0.8"/>
+    <circle cx="50" cy="50" r="8" fill="#ffffff" opacity="0.9"/>
+    
+    <!-- Small stars -->
+    <path d="M-100,-20 L-95,-15 L-100,-10 L-105,-15 Z" fill="#ffffff" opacity="0.7"/>
+    <path d="M100,20 L105,25 L100,30 L95,25 Z" fill="#ffffff" opacity="0.7"/>
+    <path d="M-20,100 L-15,105 L-20,110 L-25,105 Z" fill="#ffffff" opacity="0.7"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="256" y="380" font-family="Arial, sans-serif" font-size="32" font-weight="bold" text-anchor="middle" fill="#ffffff">FP</text>
+</svg>
+
+

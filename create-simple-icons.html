@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <canvas id="canvas" width="512" height="512" style="border: 1px solid #ccc;"></canvas>
+    <br><br>
+    <button onclick="generateIcon(192, 'icon-192.png')">Generate 192x192</button>
+    <button onclick="generateIcon(512, 'icon-512.png')">Generate 512x512</button>
+    <button onclick="generateIcon(180, 'apple-touch-icon.png')">Generate Apple Touch Icon</button>
+
+    <script>
+        function generateIcon(size, filename) {
+            const canvas = document.getElementById('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Create gradient background
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#4f46e5');
+            gradient.addColorStop(1, '#06b6d4');
+
+            // Background circle
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - 4, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // White border
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = Math.max(4, size/64);
+            ctx.stroke();
+
+            // Star shape
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            const centerX = size/2;
+            const centerY = size/2;
+            const starSize = size * 0.15;
+
+            // Simple star using lines
+            ctx.moveTo(centerX, centerY - starSize);
+            ctx.lineTo(centerX + starSize * 0.3, centerY - starSize * 0.3);
+            ctx.lineTo(centerX + starSize, centerY - starSize * 0.3);
+            ctx.lineTo(centerX + starSize * 0.5, centerY + starSize * 0.2);
+            ctx.lineTo(centerX + starSize * 0.8, centerY + starSize);
+            ctx.lineTo(centerX, centerY + starSize * 0.6);
+            ctx.lineTo(centerX - starSize * 0.8, centerY + starSize);
+            ctx.lineTo(centerX - starSize * 0.5, centerY + starSize * 0.2);
+            ctx.lineTo(centerX - starSize, centerY - starSize * 0.3);
+            ctx.lineTo(centerX - starSize * 0.3, centerY - starSize * 0.3);
+            ctx.closePath();
+            ctx.fill();
+
+            // Add white outline to star
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = Math.max(2, size/128);
+            ctx.stroke();
+
+            // Add text
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${Math.max(16, size/16)}px Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('FP', centerX, centerY + starSize * 2.2);
+
+            // Download the image
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+            console.log(`Generated ${filename} (${size}x${size})`);
+        }
+    </script>
+</body>
+</html>
