@@ -1,9 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root{
-  /* Modern Color Palette */
-  --bg: #fafafa;
+  /* Design System Tokens */
+  --bg: #f9fafb;
   --panel: #ffffff;
-  --muted: #f8f9fa;
-  --text: #1a1a1a;
+  --muted: #f3f4f6;
+  --text: #111827;
   --sub: #6b7280;
   --primary: #3b82f6;
   --primary-light: #dbeafe;
@@ -18,8 +22,8 @@
   --border-light: #f3f4f6;
   --section-bg: #f9fafb;
   --card-bg: #ffffff;
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   
   /* Kid-friendly colors */

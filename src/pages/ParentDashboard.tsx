@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import NavBar from '../components/NavBar'
 import { useApp } from '../state/store'
 import { todayYMD, toYMD, formatTime } from '../utils/date'
 import { calcBalancePoints, getCutoffMinutes, getDailyCapMinutes, spentScreenMinutesOnDate, spentScreenMinutesFromSessions, spentScreenMinutesFromLedger, teamBonusGiven, baselineDone } from '../utils/logic'
@@ -27,7 +26,7 @@ export default function ParentDashboard(){
   })
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   
-  if (!household) return <div className="container"><div className="panel">No household. <Link to="/">Go to Setup</Link></div></div>
+  if (!household) return <div className="p-6"><div className="bg-white rounded-xl p-6 shadow-soft">No household. <Link to="/">Go to Setup</Link></div></div>
   const settings = household.settings
 
   const updateFilter = (key: string, value: string) => {
@@ -68,39 +67,37 @@ export default function ParentDashboard(){
   }
 
   return (
-    <div className="container">
-      <NavBar/>
-      
-      <div className="panel">
-        <div className="section-header">
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl p-6 shadow-soft">
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
           <div>
-            <h1>Family Dashboard</h1>
-            <div className="section-subtitle">Manage your family's points and activities</div>
+            <h1 className="text-2xl font-bold text-gray-900">Family Dashboard</h1>
+            <div className="text-gray-500">Manage your family's points and activities</div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-2">
-        <div className="panel">
-          <div className="section-header">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl p-6 shadow-soft">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
             <div>
-              <div className="section-title">Pending Requests</div>
-              <div className="section-subtitle">Children's requests waiting for approval</div>
+              <div className="text-lg font-semibold text-gray-900">Pending Requests</div>
+              <div className="text-gray-500">Children's requests waiting for approval</div>
             </div>
           </div>
         
-        <div className="vstack">
+        <div className="space-y-4">
           {ledger.filter(l => l.date === ymd && l.type === 'earn' && l.code.startsWith('REQUEST_')).map(e => {
             const child = household.children.find(c => c.id === e.childId)!
             return (
-              <div key={e.id} className="card">
-                <div className="row">
+              <div key={e.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="section-title">{child.name} - {e.label}</div>
-                    <div className="section-subtitle">Requested at {new Date(e.ts).toLocaleTimeString()}</div>
+                    <div className="font-semibold text-gray-900">{child.name} - {e.label}</div>
+                    <div className="text-sm text-gray-500">Requested at {new Date(e.ts).toLocaleTimeString()}</div>
                   </div>
-                  <div className="hstack">
-                    <button className="btn good" onClick={() => {
+                  <div className="flex space-x-2">
+                    <button className="px-3 py-1 bg-success-500 text-white rounded-lg hover:bg-success-600 transition-colors" onClick={() => {
                       // Convert request to actual task completion
                       const taskCode = e.code.replace('REQUEST_', '')
                       app.addEarn(child.id, taskCode, e.label.replace('Request: ', ''), 10) // Default points
