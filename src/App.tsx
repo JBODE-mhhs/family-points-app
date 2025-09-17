@@ -6,6 +6,7 @@ import Settings from './pages/Settings'
 import BankDay from './pages/BankDay'
 import InstallPrompt from './components/InstallPrompt'
 import { AppShell } from './components/layout/app-shell'
+import { ThemeProvider } from './components/theme-provider'
 import { useApp } from './state/store'
 
 export default function App(){
@@ -15,18 +16,18 @@ export default function App(){
     // Setup page doesn't need the app shell
     if (!h) {
       return (
-        <>
+        <ThemeProvider defaultTheme="light" storageKey="family-points-theme">
           <InstallPrompt />
           <Routes>
             <Route path="/" element={<Setup/>} />
             <Route path="*" element={<Navigate to="/" replace/>} />
           </Routes>
-        </>
+        </ThemeProvider>
       )
     }
     
     return (
-      <>
+      <ThemeProvider defaultTheme="light" storageKey="family-points-theme">
         <InstallPrompt />
         <AppShell>
           <Routes>
@@ -38,7 +39,7 @@ export default function App(){
             <Route path="*" element={<Navigate to="/" replace/>} />
           </Routes>
         </AppShell>
-      </>
+      </ThemeProvider>
     )
   } catch (error) {
     console.error('App error:', error)

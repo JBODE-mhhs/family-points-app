@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Button } from "../ui/button"
 import { Badge } from "../ui/badge"
+import { useTheme } from "../theme-provider"
 import { 
   Menu, 
   Sun, 
@@ -16,11 +17,10 @@ interface TopBarProps {
 }
 
 export function TopBar({ onMenuClick, isChildView = false, notificationCount = 0 }: TopBarProps) {
-  const [isDarkMode, setIsDarkMode] = React.useState(false)
+  const { theme, setTheme } = useTheme()
 
   const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode)
-    // TODO: Implement theme persistence
+    setTheme(theme === "light" ? "dark" : "light")
   }
 
   return (
@@ -73,7 +73,7 @@ export function TopBar({ onMenuClick, isChildView = false, notificationCount = 0
             size="icon"
             onClick={toggleTheme}
           >
-            {isDarkMode ? (
+            {theme === "dark" ? (
               <Sun className="h-5 w-5" />
             ) : (
               <Moon className="h-5 w-5" />
