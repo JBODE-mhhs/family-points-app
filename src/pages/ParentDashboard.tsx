@@ -1,18 +1,34 @@
 import { Link } from 'react-router-dom'
 import { useApp } from '../state/store'
-import { todayYMD, toYMD, formatTime } from '../utils/date'
-import { calcBalancePoints, getCutoffMinutes, getDailyCapMinutes, spentScreenMinutesOnDate, spentScreenMinutesFromSessions, spentScreenMinutesFromLedger, teamBonusGiven, baselineDone } from '../utils/logic'
+import { todayYMD, formatTime } from '../utils/date'
+import { calcBalancePoints, getCutoffMinutes, getDailyCapMinutes, spentScreenMinutesFromSessions, spentScreenMinutesFromLedger, teamBonusGiven, baselineDone } from '../utils/logic'
 import TaskButtons from '../components/TaskButtons'
 import Timer from '../components/Timer'
 import { useRealtimeUpdates } from '../hooks/useRealtimeUpdates'
 import { useMemo, useState } from 'react'
+import { DashboardCard } from '../components/ui/dashboard-card'
+import { StatCard } from '../components/ui/stat-card'
+import { ActionButton } from '../components/ui/action-button'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { 
+  Users, 
+  Clock, 
+  DollarSign, 
+  CheckCircle, 
+  AlertCircle,
+  TrendingUp,
+  Activity,
+  Settings
+} from 'lucide-react'
 
 export default function ParentDashboard(){
   const app = useApp()
   const household = app.household
   const ledger = app.ledger
   const ymd = todayYMD()
-  useRealtimeUpdates() // This handles all real-time updates
+  useRealtimeUpdates()
   
   // Filter state
   const [filters, setFilters] = useState({
@@ -26,7 +42,16 @@ export default function ParentDashboard(){
   })
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   
-  if (!household) return <div className="p-6"><div className="bg-white rounded-xl p-6 shadow-soft">No household. <Link to="/">Go to Setup</Link></div></div>
+  if (!household) return (
+    <div className="p-6">
+      <Card>
+        <CardContent className="p-6">
+          <p>No household. <Link to="/" className="text-primary-500 hover:underline">Go to Setup</Link></p>
+        </CardContent>
+      </Card>
+    </div>
+  )
+  
   const settings = household.settings
 
   const updateFilter = (key: string, value: string) => {
@@ -42,7 +67,6 @@ export default function ParentDashboard(){
         .map(l => l.label)
         .filter(Boolean)
     )).sort()
-    console.log('📋 Available labels:', labels)
     return labels
   }
 
@@ -66,228 +90,355 @@ export default function ParentDashboard(){
     household.children.forEach(c => app.addEarn(c.id, 'TEAM_BONUS', 'Team bonus (both finished baselines)', settings.teamBonusPoints))
   }
 
+  // Calculate dashboard metrics
+  const totalPoints = useMemo(() => {
+    return household.children.reduce((sum, child) => {
+      return sum + calcBalancePoints(ledger, child.id)
+    }, 0)
+  }, [household.children, ledger])
+
+  const pendingRequests = useMemo(() => {
+    return ledger.filter(l => 
+      l.date === ymd && 
+      l.type === 'earn' && 
+      (l.code.startsWith('REQUEST_') || l.code.startsWith('SCREEN_REQUEST') || l.code === 'PAUSE_REQUEST')
+    ).length
+  }, [ledger, ymd])
+
+  const activeScreenTime = useMemo(() => {
+    return Object.keys(app.screenTimeSessions).length
+  }, [app.screenTimeSessions])
+
+  const cashOutRequests = useMemo(() => {
+    return app.cashOutRequests.filter(r => r.status === 'pending').length
+  }, [app.cashOutRequests])
+
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl p-6 shadow-soft">
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Family Dashboard</h1>
-            <div className="text-gray-500">Manage your family's points and activities</div>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Family Dashboard</h1>
+          <p className="text-gray-600 mt-1">Manage your family's points and activities</p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Badge variant="secondary" className="text-sm">
+            {household.children.length} children
+          </Badge>
+          <Button variant="outline" size="sm">
+            <Settings className="h-4 w-4 mr-2" />
+            Settings
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-6 shadow-soft">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
-            <div>
-              <div className="text-lg font-semibold text-gray-900">Pending Requests</div>
-              <div className="text-gray-500">Children's requests waiting for approval</div>
-            </div>
-          </div>
-        
-        <div className="space-y-4">
-          {ledger.filter(l => l.date === ymd && l.type === 'earn' && l.code.startsWith('REQUEST_')).map(e => {
-            const child = household.children.find(c => c.id === e.childId)!
-            return (
-              <div key={e.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-gray-900">{child.name} - {e.label}</div>
-                    <div className="text-sm text-gray-500">Requested at {new Date(e.ts).toLocaleTimeString()}</div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button className="px-3 py-1 bg-success-500 text-white rounded-lg hover:bg-success-600 transition-colors" onClick={() => {
-                      // Convert request to actual task completion
-                      const taskCode = e.code.replace('REQUEST_', '')
-                      app.addEarn(child.id, taskCode, e.label.replace('Request: ', ''), 10) // Default points
-                      app.removeLedger(e.id)
-                    }}>
-                      ✓ Approve
-                    </button>
-                    <button className="btn warn" onClick={() => app.removeLedger(e.id)}>
-                      ✗ Deny
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-          {ledger.filter(l => l.date === ymd && l.type === 'earn' && l.code.startsWith('SCREEN_REQUEST')).map(e => {
-            const child = household.children.find(c => c.id === e.childId)!
-            const minutes = parseInt(e.label.match(/(\d+)m/)?.[1] || '0')
-            const cost = minutes * settings.pointPerMinute
-            return (
-              <div key={e.id} className="card">
-                <div className="row">
-                  <div>
-                    <div className="section-title">{child.name} - Screen Time Request</div>
-                    <div className="section-subtitle">{e.label} - Cost: {cost} points</div>
-                  </div>
-                  <div className="hstack">
-                    <button className="btn good" onClick={() => {
-                      app.addSpend(child.id, 'SCREEN_APPROVED', `Approved: ${e.label}`, cost)
-                      app.startScreenTime(child.id, minutes)
-                      app.removeLedger(e.id)
-                    }}>
-                      ✓ Approve
-                    </button>
-                    <button className="btn warn" onClick={() => app.removeLedger(e.id)}>
-                      ✗ Deny
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-          {ledger.filter(l => l.date === ymd && l.type === 'earn' && l.code === 'PAUSE_REQUEST').map(e => {
-            const child = household.children.find(c => c.id === e.childId)!
-            return (
-              <div key={e.id} className="card">
-                <div className="row">
-                  <div>
-                    <div className="section-title">{child.name} - Pause Request</div>
-                    <div className="section-subtitle">Wants to pause their screen time</div>
-                  </div>
-                  <div className="hstack">
-                    <button className="btn good" onClick={() => {
-                      // Pause the screen time session
-                      app.pauseScreenTime(child.id)
-                      app.removeLedger(e.id)
-                      alert('Screen time paused for ' + child.name)
-                    }}>
-                      ✓ Pause
-                    </button>
-                    <button className="btn warn" onClick={() => app.removeLedger(e.id)}>
-                      ✗ Deny
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-          {ledger.filter(l => l.date === ymd && l.type === 'earn' && (l.code.startsWith('REQUEST_') || l.code.startsWith('SCREEN_REQUEST') || l.code === 'PAUSE_REQUEST')).length === 0 && (
-            <div className="help-text">No pending requests</div>
-          )}
-        </div>
-        </div>
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Total Points"
+          value={totalPoints.toLocaleString()}
+          subtitle="Family balance"
+          icon={<TrendingUp className="h-8 w-8 text-primary-500" />}
+        />
+        <StatCard
+          title="Pending Requests"
+          value={pendingRequests}
+          subtitle="Awaiting approval"
+          icon={<AlertCircle className="h-8 w-8 text-warning-500" />}
+        />
+        <StatCard
+          title="Active Screen Time"
+          value={activeScreenTime}
+          subtitle="Current sessions"
+          icon={<Clock className="h-8 w-8 text-success-500" />}
+        />
+        <StatCard
+          title="Cash-Out Requests"
+          value={cashOutRequests}
+          subtitle="Pending approval"
+          icon={<DollarSign className="h-8 w-8 text-primary-500" />}
+        />
+      </div>
 
-        {/* Cash-Out Requests */}
-        {app.cashOutRequests.filter(r => r.status === 'pending').length > 0 && (
-          <div className="panel">
-            <div className="section-header">
-              <div>
-                <div className="section-title">💰 Cash-Out Requests</div>
-                <div className="section-subtitle">Children's cash-out requests waiting for approval</div>
-              </div>
-            </div>
-            
-            <div className="vstack">
-              {app.cashOutRequests.filter(r => r.status === 'pending').map(request => (
-                <div key={request.id} className="card">
-                  <div className="row">
-                    <div>
-                      <div className="section-title">{request.childName} - ${request.amount} Cash-Out</div>
-                      <div className="section-subtitle">
-                        {request.points} points • Requested {new Date(request.requestedAt).toLocaleString()}
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Pending Requests */}
+        <DashboardCard
+          title="Pending Requests"
+          description="Children's requests waiting for approval"
+          headerAction={
+            <Badge variant="warning">
+              {pendingRequests} pending
+            </Badge>
+          }
+        >
+          <div className="space-y-4">
+            {ledger.filter(l => l.date === ymd && l.type === 'earn' && l.code.startsWith('REQUEST_')).map(e => {
+              const child = household.children.find(c => c.id === e.childId)!
+              return (
+                <Card key={e.id} className="border-l-4 border-l-warning-500">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900">{child.name} - {e.label}</h4>
+                        <p className="text-sm text-gray-500">Requested at {new Date(e.ts).toLocaleTimeString()}</p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <ActionButton
+                          variant="approve"
+                          size="sm"
+                          onClick={() => {
+                            const taskCode = e.code.replace('REQUEST_', '')
+                            app.addEarn(child.id, taskCode, e.label.replace('Request: ', ''), 10)
+                            app.removeLedger(e.id)
+                          }}
+                        >
+                          ✓ Approve
+                        </ActionButton>
+                        <ActionButton
+                          variant="deny"
+                          size="sm"
+                          onClick={() => app.removeLedger(e.id)}
+                        >
+                          ✗ Deny
+                        </ActionButton>
                       </div>
                     </div>
-                    <div className="hstack">
-                      <button className="btn good" onClick={() => {
-                        if (confirm(`Approve $${request.amount} cash-out for ${request.childName}? This will deduct ${request.points} points.`)) {
-                          app.approveCashOut(request.id, true)
-                          alert(`Approved $${request.amount} cash-out for ${request.childName}`)
-                        }
-                      }}>
-                        ✓ Approve
-                      </button>
-                      <button className="btn warn" onClick={() => {
-                        if (confirm(`Reject $${request.amount} cash-out request from ${request.childName}?`)) {
-                          app.approveCashOut(request.id, false)
-                          alert(`Rejected cash-out request from ${request.childName}`)
-                        }
-                      }}>
-                        ✗ Reject
-                      </button>
+                  </CardContent>
+                </Card>
+              )
+            })}
+            
+            {ledger.filter(l => l.date === ymd && l.type === 'earn' && l.code.startsWith('SCREEN_REQUEST')).map(e => {
+              const child = household.children.find(c => c.id === e.childId)!
+              const minutes = parseInt(e.label.match(/(\d+)m/)?.[1] || '0')
+              const cost = minutes * settings.pointPerMinute
+              return (
+                <Card key={e.id} className="border-l-4 border-l-primary-500">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900">{child.name} - Screen Time Request</h4>
+                        <p className="text-sm text-gray-500">{e.label} - Cost: {cost} points</p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <ActionButton
+                          variant="approve"
+                          size="sm"
+                          onClick={() => {
+                            app.addSpend(child.id, 'SCREEN_APPROVED', `Approved: ${e.label}`, cost)
+                            app.startScreenTime(child.id, minutes)
+                            app.removeLedger(e.id)
+                          }}
+                        >
+                          ✓ Approve
+                        </ActionButton>
+                        <ActionButton
+                          variant="deny"
+                          size="sm"
+                          onClick={() => app.removeLedger(e.id)}
+                        >
+                          ✗ Deny
+                        </ActionButton>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+            
+            {ledger.filter(l => l.date === ymd && l.type === 'earn' && l.code === 'PAUSE_REQUEST').map(e => {
+              const child = household.children.find(c => c.id === e.childId)!
+              return (
+                <Card key={e.id} className="border-l-4 border-l-info-500">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900">{child.name} - Pause Request</h4>
+                        <p className="text-sm text-gray-500">Wants to pause their screen time</p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <ActionButton
+                          variant="approve"
+                          size="sm"
+                          onClick={() => {
+                            app.pauseScreenTime(child.id)
+                            app.removeLedger(e.id)
+                            alert('Screen time paused for ' + child.name)
+                          }}
+                        >
+                          ✓ Pause
+                        </ActionButton>
+                        <ActionButton
+                          variant="deny"
+                          size="sm"
+                          onClick={() => app.removeLedger(e.id)}
+                        >
+                          ✗ Deny
+                        </ActionButton>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+            
+            {pendingRequests === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No pending requests</p>
+              </div>
+            )}
+          </div>
+        </DashboardCard>
+
+        {/* Cash-Out Requests */}
+        {cashOutRequests > 0 && (
+          <DashboardCard
+            title="💰 Cash-Out Requests"
+            description="Children's cash-out requests waiting for approval"
+            headerAction={
+              <Badge variant="warning">
+                {cashOutRequests} pending
+              </Badge>
+            }
+          >
+            <div className="space-y-4">
+              {app.cashOutRequests.filter(r => r.status === 'pending').map(request => (
+                <Card key={request.id} className="border-l-4 border-l-success-500">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900">{request.childName} - ${request.amount} Cash-Out</h4>
+                        <p className="text-sm text-gray-500">
+                          {request.points} points • Requested {new Date(request.requestedAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <ActionButton
+                          variant="approve"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm(`Approve $${request.amount} cash-out for ${request.childName}? This will deduct ${request.points} points.`)) {
+                              app.approveCashOut(request.id, true)
+                              alert(`Approved $${request.amount} cash-out for ${request.childName}`)
+                            }
+                          }}
+                        >
+                          ✓ Approve
+                        </ActionButton>
+                        <ActionButton
+                          variant="deny"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm(`Reject $${request.amount} cash-out request from ${request.childName}?`)) {
+                              app.approveCashOut(request.id, false)
+                              alert(`Rejected cash-out request from ${request.childName}`)
+                            }
+                          }}
+                        >
+                          ✗ Reject
+                        </ActionButton>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
-          </div>
+          </DashboardCard>
         )}
 
-        <div className="panel">
-          <div className="section-header">
-            <div>
-              <div className="section-title">Screen Time Sessions</div>
-              <div className="section-subtitle">Monitor and control children's screen time</div>
-            </div>
-          </div>
-        
-        <div className="vstack">
-          {Object.values(app.screenTimeSessions).map(session => {
-            const child = household.children.find(c => c.id === session.childId)
-            if (!child) return null
-            
-            // Calculate remaining time with seconds
-            const now = Date.now()
-            let elapsedMs = now - session.startTime
-            
-            // Subtract total paused time
-            if (session.status === 'paused' && session.pausedAt) {
-              elapsedMs -= (now - session.pausedAt)
-            }
-            elapsedMs -= session.totalPausedTime
-            
-            const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60))
-            const remainingMinutes = Math.max(0, session.totalMinutes - elapsedMinutes)
-            const remainingSeconds = Math.max(0, Math.floor((session.totalMinutes * 60) - (elapsedMs / 1000)))
-            const mins = Math.floor(remainingSeconds / 60)
-            const secs = remainingSeconds % 60
-            
-            return (
-              <div key={session.childId} className="card">
-                <div className="row">
-                  <div>
-                    <div className="section-title">{child.name} - Screen Time</div>
-                    <div className="section-subtitle">
-                      {session.status === 'running' && `Running - ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')} left`}
-                      {session.status === 'paused' && `Paused - ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')} left`}
-                      {session.status === 'completed' && 'Completed'}
+        {/* Screen Time Sessions */}
+        <DashboardCard
+          title="Screen Time Sessions"
+          description="Monitor and control children's screen time"
+          headerAction={
+            <Badge variant={activeScreenTime > 0 ? "success" : "secondary"}>
+              {activeScreenTime} active
+            </Badge>
+          }
+        >
+          <div className="space-y-4">
+            {Object.values(app.screenTimeSessions).map(session => {
+              const child = household.children.find(c => c.id === session.childId)
+              if (!child) return null
+              
+              // Calculate remaining time with seconds
+              const now = Date.now()
+              let elapsedMs = now - session.startTime
+              
+              // Subtract total paused time
+              if (session.status === 'paused' && session.pausedAt) {
+                elapsedMs -= (now - session.pausedAt)
+              }
+              elapsedMs -= session.totalPausedTime
+              
+              const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60))
+              const remainingMinutes = Math.max(0, session.totalMinutes - elapsedMinutes)
+              const remainingSeconds = Math.max(0, Math.floor((session.totalMinutes * 60) - (elapsedMs / 1000)))
+              const mins = Math.floor(remainingSeconds / 60)
+              const secs = remainingSeconds % 60
+              
+              return (
+                <Card key={session.childId} className="border-l-4 border-l-primary-500">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900">{child.name} - Screen Time</h4>
+                        <p className="text-sm text-gray-500">
+                          {session.status === 'running' && `Running - ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')} left`}
+                          {session.status === 'paused' && `Paused - ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')} left`}
+                          {session.status === 'completed' && 'Completed'}
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        {session.status === 'running' && (
+                          <ActionButton
+                            variant="warning"
+                            size="sm"
+                            onClick={() => app.pauseScreenTime(child.id)}
+                          >
+                            ⏸️ Pause
+                          </ActionButton>
+                        )}
+                        {session.status === 'paused' && (
+                          <ActionButton
+                            variant="approve"
+                            size="sm"
+                            onClick={() => app.resumeScreenTime(child.id)}
+                          >
+                            ▶️ Resume
+                          </ActionButton>
+                        )}
+                        <ActionButton
+                          variant="deny"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm(`End screen time for ${child.name}? Remaining time will be refunded as points.`)) {
+                              app.endScreenTime(child.id, true)
+                            }
+                          }}
+                        >
+                          ⏹️ End
+                        </ActionButton>
+                      </div>
                     </div>
-                  </div>
-                  <div className="hstack">
-                    {session.status === 'running' && (
-                      <button className="btn warn" onClick={() => app.pauseScreenTime(child.id)}>
-                        ⏸️ Pause
-                      </button>
-                    )}
-                    {session.status === 'paused' && (
-                      <button className="btn good" onClick={() => app.resumeScreenTime(child.id)}>
-                        ▶️ Resume
-                      </button>
-                    )}
-                    <button className="btn bad" onClick={() => {
-                      if (confirm(`End screen time for ${child.name}? Remaining time will be refunded as points.`)) {
-                        app.endScreenTime(child.id, true)
-                      }
-                    }}>
-                      ⏹️ End
-                    </button>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+            {activeScreenTime === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No active screen time sessions</p>
               </div>
-            )
-          })}
-          {Object.keys(app.screenTimeSessions).length === 0 && (
-            <div className="help-text">No active screen time sessions</div>
-          )}
-        </div>
-        </div>
+            )}
+          </div>
+        </DashboardCard>
       </div>
 
-      <div className="grid grid-2">
+      {/* Children Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {household.children.map(child => {
           const balance = calcBalancePoints(ledger, child.id)
           const spentFromSessions = spentScreenMinutesFromSessions(app.screenTimeSessions, child.id, ymd)
@@ -298,155 +449,163 @@ export default function ParentDashboard(){
           const cutoffTime = new Date()
           cutoffTime.setHours(Math.floor(cutoff/60), cutoff%60, 0, 0)
           const cutoffStr = formatTime(cutoffTime, settings.timezone)
+          
           return (
-            <div key={child.id} className="panel">
-              <div className="section-header">
+            <DashboardCard
+              key={child.id}
+              title={child.name}
+              description={`Age ${child.age} • Level ${child.level}`}
+              headerAction={
+                <Link to={`/child/${child.id}`}>
+                  <Button variant="outline" size="sm">
+                    Child View
+                  </Button>
+                </Link>
+              }
+            >
+              <div className="space-y-6">
+                {/* Child Stats */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary-600">{balance}</div>
+                    <div className="text-xs text-gray-500">Points</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-success-600">{spentToday}m</div>
+                    <div className="text-xs text-gray-500">Screen Time</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-warning-600">{cutoffStr}</div>
+                    <div className="text-xs text-gray-500">Cut-off</div>
+                  </div>
+                </div>
+
+                {/* Tasks */}
                 <div>
-                  <h2>{child.name}</h2>
-                  <div className="section-subtitle">Age {child.age} • Level {child.level}</div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Daily Tasks</h4>
+                  <TaskButtons child={child} date={new Date()}/>
                 </div>
-                <Link className="btn primary" to={`/child/${child.id}`}>Child View</Link>
-              </div>
-              
-              <div className="grid grid-3">
-                <div className="stat-card">
-                  <div className="stat-label">Points Balance</div>
-                  <div className="stat-value">{balance}</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">Screen Time Today</div>
-                  <div className="stat-value">{spentToday}m</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">Cut-off Time</div>
-                  <div className="stat-value">{cutoffStr}</div>
-                </div>
-              </div>
 
-              <TaskButtons child={child} date={new Date()}/>
-
-              <div className="section">
-                <div className="section-header">
-                  <div>
-                    <div className="section-title">Quick Actions</div>
-                    <div className="section-subtitle">Deductions and corrections</div>
+                {/* Quick Actions */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Quick Actions</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <ActionButton
+                      variant="warning"
+                      size="sm"
+                      onClick={() => app.addDeduction(child.id, 'DED_REMINDER', 'Second reminder', 5)}
+                    >
+                      –5 Reminder
+                    </ActionButton>
+                    <ActionButton
+                      variant="warning"
+                      size="sm"
+                      onClick={() => app.addDeduction(child.id, 'DED_RUDE', 'Rude language', 10)}
+                    >
+                      –10 Rude
+                    </ActionButton>
+                    <ActionButton
+                      variant="deny"
+                      size="sm"
+                      onClick={() => app.addLockout(child.id, 'LYING_SNEAK', 30)}
+                    >
+                      Lockout (–30)
+                    </ActionButton>
+                    <ActionButton
+                      variant="approve"
+                      size="sm"
+                      onClick={() => app.addReset(child.id)}
+                    >
+                      Reset Complete
+                    </ActionButton>
                   </div>
                 </div>
-                
-                <div className="help-text">
-                  💡 <strong>Accountability System:</strong> When children mark tasks as complete, you can verify them. 
-                  If a task wasn't actually done, it will reduce their points by 30% as a penalty.
+
+                {/* Screen Time Timer */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Screen Time</h4>
+                  <Timer child={child} onSpend={() => {
+                    app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)
+                  }}/>
                 </div>
-                
-                <div className="grid grid-3">
-                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_REMINDER', 'Second reminder', 5)}>–5 Reminder</button>
-                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_RUDE', 'Rude language', 10)}>–10 Rude</button>
-                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_TIMER_IGNORED', 'Timer ignored', 10)}>–10 Timer Ignored</button>
-                </div>
-                <div className="grid grid-3">
-                  <button className="btn bad" onClick={() => app.addLockout(child.id, 'LYING_SNEAK', 30)}>Lockout (Lying/Sneak –30)</button>
-                  <button className="btn bad" onClick={() => app.addLockout(child.id, 'UNSAFE', 20)}>Lockout (Unsafe –20)</button>
-                  <button className="btn good" onClick={() => app.addReset(child.id)}>Reset Complete</button>
+
+                {/* Cash Preview */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Cash-out Preview</h4>
+                  <CashPreview childId={child.id} />
                 </div>
               </div>
-
-              <div className="section">
-                <div className="section-header">
-                  <div>
-                    <div className="section-title">Screen Time</div>
-                    <div className="section-subtitle">Manage screen time blocks</div>
-                  </div>
-                </div>
-                
-                <Timer child={child} onSpend={() => {
-                  app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)
-                }}/>
-
-                <div className="hstack">
-                  <button className="btn" onClick={() => app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)}>Spend 30m</button>
-                </div>
-              </div>
-
-              <div className="section">
-                <div className="section-header">
-                  <div>
-                    <div className="section-title">Cash-out Preview</div>
-                    <div className="section-subtitle">Available for bank day</div>
-                  </div>
-                </div>
-                <CashPreview childId={child.id} />
-              </div>
-            </div>
+            </DashboardCard>
           )
         })}
       </div>
 
-      <div className="panel">
-        <div className="section-header">
-          <div>
-            <div className="section-title">Team Bonus</div>
-            <div className="section-subtitle">Reward both children when all baselines are complete</div>
-          </div>
-          <button className="btn primary" disabled={teamBonusGiven(ledger, ymd)} onClick={giveTeamBonus}>
+      {/* Team Bonus */}
+      <DashboardCard
+        title="Team Bonus"
+        description="Reward both children when all baselines are complete"
+        headerAction={
+          <Button 
+            variant="default" 
+            disabled={teamBonusGiven(ledger, ymd)} 
+            onClick={giveTeamBonus}
+          >
             Give +{settings.teamBonusPoints} to both
-          </button>
+          </Button>
+        }
+      >
+        <div className="text-center py-4">
+          <p className="text-gray-600">
+            {teamBonusGiven(ledger, ymd) 
+              ? "Team bonus already given today!" 
+              : "Both children need to complete all baseline tasks to unlock team bonus."
+            }
+          </p>
         </div>
-      </div>
+      </DashboardCard>
 
-
-      <div className="panel">
-        <div className="section-header">
-          <div>
-            <div className="section-title">All Activity</div>
-            <div className="section-subtitle">All points earned and spent</div>
-          </div>
-        </div>
-        
-        <div className="ledger-container">
-          <>
-            {/* Filter Controls */}
-            <div className="panel" style={{marginBottom: '16px', padding: '16px'}}>
-              <div className="section-header" style={{marginBottom: filtersExpanded ? '16px' : '0'}}>
-                <div>
-                  <div className="section-title">Filter Activity</div>
-                  <div className="section-subtitle">Filter by any column to find specific entries</div>
-                </div>
-                <div className="hstack" style={{gap: '8px'}}>
-                  <button className="btn ghost" onClick={clearFilters}>Clear All</button>
-                  <button 
-                    className="btn ghost" 
-                    onClick={() => setFiltersExpanded(!filtersExpanded)}
-                    style={{padding: '8px'}}
-                  >
-                    {filtersExpanded ? '▼' : '▶'} {filtersExpanded ? 'Hide' : 'Show'} Filters
-                  </button>
-                </div>
-              </div>
-              
-              {filtersExpanded && (
-                <div className="grid grid-3" style={{gap: '12px'}}>
+      {/* Activity Log */}
+      <DashboardCard
+        title="All Activity"
+        description="All points earned and spent"
+        headerAction={
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setFiltersExpanded(!filtersExpanded)}
+          >
+            {filtersExpanded ? 'Hide' : 'Show'} Filters
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          {/* Filter Controls */}
+          {filtersExpanded && (
+            <Card className="bg-gray-50">
+              <CardContent className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   <div>
-                    <label className="label">Start Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                     <input 
                       type="date" 
-                      className="input" 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       value={filters.startDate}
                       onChange={(e) => updateFilter('startDate', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="label">End Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
                     <input 
                       type="date" 
-                      className="input" 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       value={filters.endDate}
                       onChange={(e) => updateFilter('endDate', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="label">Child</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Child</label>
                     <select 
-                      className="input" 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       value={filters.child}
                       onChange={(e) => updateFilter('child', e.target.value)}
                     >
@@ -456,202 +615,118 @@ export default function ParentDashboard(){
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="label">Type</label>
-                    <select 
-                      className="input" 
-                      value={filters.type}
-                      onChange={(e) => updateFilter('type', e.target.value)}
-                    >
-                      <option value="">All Types</option>
-                      <option value="earn">Earn</option>
-                      <option value="spend">Spend</option>
-                      <option value="deduction">Deduction</option>
-                      <option value="bonus">Bonus</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Labels</label>
-                    <select 
-                      className="input" 
-                      value=""
-                      onChange={(e) => {
-                        if (e.target.value && !filters.labels.includes(e.target.value)) {
-                          const newLabels = [...filters.labels, e.target.value]
-                          console.log('🎯 Adding label:', e.target.value, 'New labels array:', newLabels)
-                          setFilters(prev => ({ ...prev, labels: newLabels }))
-                        }
-                        e.target.value = "" // Reset selection
-                      }}
-                    >
-                      <option value="" disabled>
-                        {filters.labels.length === 0 ? 'All Labels' : `${filters.labels.length} selected`}
-                      </option>
-                      {getAllLabels().map(label => (
-                        <option key={label} value={label}>{label}</option>
-                      ))}
-                    </select>
-                    {filters.labels.length > 0 && (
-                      <div className="hstack" style={{gap: '4px', marginTop: '4px', flexWrap: 'wrap'}}>
-                        {filters.labels.map(label => (
-                          <span key={label} className="badge" style={{fontSize: '12px', padding: '2px 6px'}}>
-                            {label}
-                            <button 
-                              onClick={() => setFilters(prev => ({ ...prev, labels: prev.labels.filter(l => l !== label) }))}
-                              style={{marginLeft: '4px', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer'}}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="label">Points</label>
-                    <input 
-                      type="text" 
-                      className="input" 
-                      placeholder="e.g., +10, -5, 50"
-                      value={filters.points}
-                      onChange={(e) => updateFilter('points', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Balance</label>
-                    <input 
-                      type="text" 
-                      className="input" 
-                      placeholder="e.g., 100, >50, <0"
-                      value={filters.balance}
-                      onChange={(e) => updateFilter('balance', e.target.value)}
-                    />
+                  <div className="flex items-end">
+                    <Button variant="outline" onClick={clearFilters} className="w-full">
+                      Clear Filters
+                    </Button>
                   </div>
                 </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
+          )}
 
-            <table>
-            <thead>
-              <tr>
-                <th>Date & Time</th>
-                <th>Child</th>
-                <th>Type</th>
-                <th>Label</th>
-                <th>Points</th>
-                <th>Balance</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledger.filter(l => {
-                // Don't show system-generated entries that don't need verification
-                const systemCodes = ['SCREEN_REFUND', 'SCREEN_TIME_USED', 'AUTO_BALANCE', 'TEAM_BONUS']
-                if (systemCodes.includes(l.code)) return false
-                
-                return true
-              }).slice().sort((a,b)=>b.ts-a.ts).filter(e => {
-                const child = household.children.find(c => c.id === e.childId)
-                if (!child) return false
-                
-                // Apply date range filters
-                if (filters.startDate || filters.endDate) {
-                  const entryDate = new Date(e.ts).toISOString().split('T')[0] // Get YYYY-MM-DD format
-                  if (filters.startDate && entryDate < filters.startDate) return false
-                  if (filters.endDate && entryDate > filters.endDate) return false
-                }
-                if (filters.child && child.name !== filters.child) return false
-                if (filters.type && e.type !== filters.type) return false
-                if (filters.labels.length > 0) {
-                  console.log('🔍 Checking entry:', e.label, 'Selected labels:', filters.labels, 'Match:', filters.labels.includes(e.label))
-                  if (!filters.labels.includes(e.label)) {
-                    console.log('❌ Filtering OUT:', e.label)
-                    return false
-                  } else {
-                    console.log('✅ Keeping:', e.label)
+          {/* Activity Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Date & Time</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Child</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Label</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Points</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Balance</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledger.filter(l => {
+                  const systemCodes = ['SCREEN_REFUND', 'SCREEN_TIME_USED', 'AUTO_BALANCE', 'TEAM_BONUS']
+                  if (systemCodes.includes(l.code)) return false
+                  return true
+                }).slice().sort((a,b)=>b.ts-a.ts).filter(e => {
+                  const child = household.children.find(c => c.id === e.childId)
+                  if (!child) return false
+                  
+                  if (filters.startDate || filters.endDate) {
+                    const entryDate = new Date(e.ts).toISOString().split('T')[0]
+                    if (filters.startDate && entryDate < filters.startDate) return false
+                    if (filters.endDate && entryDate > filters.endDate) return false
                   }
-                }
-                if (filters.points) {
-                  const pointsStr = e.points >= 0 ? `+${e.points}` : `${e.points}`
-                  if (!pointsStr.includes(filters.points)) return false
-                }
-                
-                return true
-              }).filter(e => {
-                // Pre-calculate balance for filtering
-                const child = household.children.find(c => c.id === e.childId)
-                if (!child) return false
-                
-                // Calculate running balance for this child up to this point
-                const allEntries = ledger.filter(l => !['SCREEN_REFUND', 'SCREEN_TIME_USED', 'AUTO_BALANCE', 'TEAM_BONUS'].includes(l.code))
-                    .sort((a,b) => b.ts - a.ts)
-                const childEntries = allEntries.filter(entry => entry.childId === e.childId)
-                const currentEntryIndex = childEntries.findIndex(entry => entry.id === e.id)
-                const entriesUpToThis = childEntries.slice(currentEntryIndex)
-                const runningBalance = entriesUpToThis.reduce((sum, entry) => sum + entry.points, 0)
-                
-                // Apply balance filter
-                if (filters.balance) {
-                  const balanceStr = runningBalance.toString()
-                  console.log('💰 Checking balance:', runningBalance, 'Filter:', filters.balance, 'Match:', balanceStr === filters.balance)
-                  if (balanceStr !== filters.balance) {
-                    console.log('❌ Filtering OUT by balance:', e.label, 'Balance:', runningBalance)
-                    return false
-                  } else {
-                    console.log('✅ Keeping by balance:', e.label, 'Balance:', runningBalance)
+                  if (filters.child && child.name !== filters.child) return false
+                  if (filters.type && e.type !== filters.type) return false
+                  
+                  return true
+                }).map((e, index, array) => {
+                  const child = household.children.find(c => c.id === e.childId)!
+                  
+                  const childEntries = array.filter(entry => entry.childId === e.childId)
+                  const currentEntryIndex = childEntries.findIndex(entry => entry.id === e.id)
+                  const entriesUpToThis = childEntries.slice(currentEntryIndex)
+                  const runningBalance = entriesUpToThis.reduce((sum, entry) => sum + entry.points, 0)
+                  
+                  const getStatusBadge = () => {
+                    if (e.type === 'earn' && e.verified === true) return <Badge variant="success">✓ Verified</Badge>
+                    if (e.type === 'earn' && e.verified === false) return <Badge variant="destructive">✗ Incomplete</Badge>
+                    if (e.type === 'earn' && e.verified === undefined) return <Badge variant="warning">⏳ Pending</Badge>
+                    return <Badge variant="secondary">{e.type}</Badge>
                   }
-                }
-                
-                return true
-              }).map((e, index, array) => {
-                const child = household.children.find(c => c.id === e.childId)!
-                
-                // Calculate running balance for this child up to this point
-                const childEntries = array.filter(entry => entry.childId === e.childId)
-                const currentEntryIndex = childEntries.findIndex(entry => entry.id === e.id)
-                const entriesUpToThis = childEntries.slice(currentEntryIndex)
-                const runningBalance = entriesUpToThis.reduce((sum, entry) => sum + entry.points, 0)
-                
-                
-                const getStatusBadge = () => {
-                  if (e.type === 'earn' && e.verified === true) return <span className="badge" style={{background: 'var(--good)'}}>✓ Verified</span>
-                  if (e.type === 'earn' && e.verified === false) return <span className="badge" style={{background: 'var(--bad)'}}>✗ Incomplete</span>
-                  if (e.type === 'earn' && e.verified === undefined) return <span className="badge" style={{background: 'var(--warn)'}}>⏳ Pending</span>
-                  return <span className="badge">{e.type}</span>
-                }
-                return (
-                  <tr key={e.id}>
-                    <td>{new Date(e.ts).toLocaleString()}</td>
-                    <td>{child?.name}</td>
-                    <td>{e.type}</td>
-                    <td>{e.label}</td>
-                    <td style={{color: e.points>=0? 'var(--good)':'var(--bad)', fontWeight: '600'}}>{e.points>=0? '+' : ''}{e.points}</td>
-                    <td style={{fontWeight: '600', color: runningBalance >= 0 ? 'var(--good)' : 'var(--bad)'}}>{runningBalance}</td>
-                    <td>
-                      <div className="hstack">
-                        {e.type === 'earn' && e.verified === undefined && !['SCREEN_REFUND', 'SCREEN_TIME_USED', 'AUTO_BALANCE', 'TEAM_BONUS'].includes(e.code) && (
-                          <>
-                            <button className="btn good small" onClick={() => app.verifyTask(e.id)}>✓</button>
-                            <button className="btn warn small" onClick={() => app.markTaskIncomplete(e.id)}>✗</button>
-                          </>
-                        )}
-                        {e.type === 'earn' && e.verified === true && !['SCREEN_REFUND', 'SCREEN_TIME_USED', 'AUTO_BALANCE', 'TEAM_BONUS'].includes(e.code) && (
-                          <button className="btn warn small" onClick={() => {
-                            if (confirm(`Undo this completed task? This will remove ${e.points} points from ${child?.name}.`)) {
-                              app.removeLedger(e.id)
-                            }
-                          }}>Undo Task</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-          </>
+                  
+                  return (
+                    <tr key={e.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 text-sm text-gray-600">{new Date(e.ts).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-sm font-medium text-gray-900">{child?.name}</td>
+                      <td className="py-3 px-4">{getStatusBadge()}</td>
+                      <td className="py-3 px-4 text-sm text-gray-900">{e.label}</td>
+                      <td className={`py-3 px-4 text-sm font-semibold ${e.points>=0? 'text-success-600':'text-error-600'}`}>
+                        {e.points>=0? '+' : ''}{e.points}
+                      </td>
+                      <td className={`py-3 px-4 text-sm font-semibold ${runningBalance >= 0 ? 'text-success-600' : 'text-error-600'}`}>
+                        {runningBalance}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex space-x-1">
+                          {e.type === 'earn' && e.verified === undefined && !['SCREEN_REFUND', 'SCREEN_TIME_USED', 'AUTO_BALANCE', 'TEAM_BONUS'].includes(e.code) && (
+                            <>
+                              <ActionButton
+                                variant="approve"
+                                size="sm"
+                                onClick={() => app.verifyTask(e.id)}
+                              >
+                                ✓
+                              </ActionButton>
+                              <ActionButton
+                                variant="deny"
+                                size="sm"
+                                onClick={() => app.markTaskIncomplete(e.id)}
+                              >
+                                ✗
+                              </ActionButton>
+                            </>
+                          )}
+                          {e.type === 'earn' && e.verified === true && !['SCREEN_REFUND', 'SCREEN_TIME_USED', 'AUTO_BALANCE', 'TEAM_BONUS'].includes(e.code) && (
+                            <ActionButton
+                              variant="warning"
+                              size="sm"
+                              onClick={() => {
+                                if (confirm(`Undo this completed task? This will remove ${e.points} points from ${child?.name}.`)) {
+                                  app.removeLedger(e.id)
+                                }
+                              }}
+                            >
+                              Undo
+                            </ActionButton>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </DashboardCard>
     </div>
   )
 }
@@ -664,27 +739,30 @@ function CashPreview({ childId }:{ childId: string }){
   const maxByPoints = Math.floor(Math.max(0, balance) / s.pointsPerDollar)
   const cap = child.weeklyCashCap
   const preview = Math.min(maxByPoints, cap)
+  
   return (
-    <div className="card">
-      <div className="grid grid-2">
-        <div className="vstack">
-          <div className="stat-label">Current Balance</div>
-          <div className="stat-value">{balance}</div>
-          <div className="small">points</div>
+    <Card className="bg-gradient-to-r from-success-50 to-primary-50 border-success-200">
+      <CardContent className="p-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="text-center">
+            <div className="text-sm text-gray-600">Current Balance</div>
+            <div className="text-2xl font-bold text-primary-600">{balance}</div>
+            <div className="text-xs text-gray-500">points</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-gray-600">Available Cash</div>
+            <div className="text-2xl font-bold text-success-600">${preview}</div>
+            <div className="text-xs text-gray-500">this week</div>
+          </div>
         </div>
-        <div className="vstack">
-          <div className="stat-label">Available Cash</div>
-          <div className="stat-value" style={{color: 'var(--good)'}}>${preview}</div>
-          <div className="small">this week</div>
+        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between text-xs text-gray-500">
+          <span>Rate: <Badge variant="secondary">50 pts = $1</Badge></span>
+          <span>Weekly cap: <strong>${cap}</strong></span>
         </div>
-      </div>
-      <div className="row" style={{marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)'}}>
-        <div className="small">Rate: <span className="tag">50 pts = $1</span></div>
-        <div className="small">Weekly cap: <strong>${cap}</strong></div>
-      </div>
-      <div className="small" style={{marginTop: '8px', color: 'var(--sub)'}}>
-        Use the Bank Day screen on Sundays to confirm cash-outs.
-      </div>
-    </div>
+        <div className="text-xs text-gray-500 mt-2">
+          Use the Bank Day screen on Sundays to confirm cash-outs.
+        </div>
+      </CardContent>
+    </Card>
   )
 }
