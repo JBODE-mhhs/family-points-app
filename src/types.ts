@@ -55,6 +55,11 @@ export interface Household {
   name: string
   children: Child[]
   settings: Settings
+  parentCredentials?: {
+    username: string
+    password: string
+    createdAt: number
+  }
 }
 
 export type LedgerType = 'earn' | 'spend' | 'deduction' | 'bonus' | 'lockout' | 'reset' | 'cashout'

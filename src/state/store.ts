@@ -58,7 +58,7 @@ export interface AppState {
     status: 'running' | 'paused' | 'completed' 
   }>
   // actions
-  createHousehold: (name: string, children: Array<{ name: string; age: number; weeklyCashCap: number; bedSchool: string; bedWeekend: string }>) => void
+  createHousehold: (name: string, children: Array<{ name: string; age: number; weeklyCashCap: number; bedSchool: string; bedWeekend: string }>, parentUsername?: string, parentPassword?: string) => void
   addEarn: (childId: string, code: string, label: string, points: number) => void
   addSpend: (childId: string, code: string, label: string, points: number) => void
   addDeduction: (childId: string, code: string, label: string, points: number) => void
@@ -93,7 +93,7 @@ export const useApp = create<AppState>()(persist(
     timers: {},
     cashOutRequests: [],
     screenTimeSessions: {},
-    createHousehold: (name, kids) => set(() => {
+    createHousehold: (name, kids, parentUsername, parentPassword) => set(() => {
       const children = kids.map(k => ({
         id: uuid(),
         name: k.name,
@@ -107,7 +107,12 @@ export const useApp = create<AppState>()(persist(
         id: uuid(),
         name,
         children,
-        settings: defaultSettings()
+        settings: defaultSettings(),
+        parentCredentials: parentUsername && parentPassword ? {
+          username: parentUsername,
+          password: parentPassword,
+          createdAt: Date.now()
+        } : undefined
       }
       return { household }
     }),
