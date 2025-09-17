@@ -81,112 +81,6 @@ export default function ParentDashboard(){
       </div>
 
       <div className="grid grid-2">
-        {household.children.map(child => {
-          const balance = calcBalancePoints(ledger, child.id)
-          const spentFromSessions = spentScreenMinutesFromSessions(app.screenTimeSessions, child.id, ymd)
-          const spentFromLedger = spentScreenMinutesFromLedger(ledger, child.id, ymd)
-          const spentToday = spentFromSessions + spentFromLedger
-          const cap = getDailyCapMinutes(child, new Date(), settings)
-          const cutoff = getCutoffMinutes(child, new Date(), settings)
-          const cutoffTime = new Date()
-          cutoffTime.setHours(Math.floor(cutoff/60), cutoff%60, 0, 0)
-          const cutoffStr = formatTime(cutoffTime, settings.timezone)
-          return (
-            <div key={child.id} className="panel">
-              <div className="section-header">
-                <div>
-                  <h2>{child.name}</h2>
-                  <div className="section-subtitle">Age {child.age} • Level {child.level}</div>
-                </div>
-                <Link className="btn primary" to={`/child/${child.id}`}>Child View</Link>
-              </div>
-              
-              <div className="grid grid-3">
-                <div className="stat-card">
-                  <div className="stat-label">Points Balance</div>
-                  <div className="stat-value">{balance}</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">Screen Time Today</div>
-                  <div className="stat-value">{spentToday}m</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-label">Cut-off Time</div>
-                  <div className="stat-value">{cutoffStr}</div>
-                </div>
-              </div>
-
-              <TaskButtons child={child} date={new Date()}/>
-
-              <div className="section">
-                <div className="section-header">
-                  <div>
-                    <div className="section-title">Quick Actions</div>
-                    <div className="section-subtitle">Deductions and corrections</div>
-                  </div>
-                </div>
-                
-                <div className="help-text">
-                  💡 <strong>Accountability System:</strong> When children mark tasks as complete, you can verify them. 
-                  If a task wasn't actually done, it will reduce their points by 30% as a penalty.
-                </div>
-                
-                <div className="grid grid-3">
-                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_REMINDER', 'Second reminder', 5)}>–5 Reminder</button>
-                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_RUDE', 'Rude language', 10)}>–10 Rude</button>
-                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_TIMER_IGNORED', 'Timer ignored', 10)}>–10 Timer Ignored</button>
-                </div>
-                <div className="grid grid-3">
-                  <button className="btn bad" onClick={() => app.addLockout(child.id, 'LYING_SNEAK', 30)}>Lockout (Lying/Sneak –30)</button>
-                  <button className="btn bad" onClick={() => app.addLockout(child.id, 'UNSAFE', 20)}>Lockout (Unsafe –20)</button>
-                  <button className="btn good" onClick={() => app.addReset(child.id)}>Reset Complete</button>
-                </div>
-              </div>
-
-              <div className="section">
-                <div className="section-header">
-                  <div>
-                    <div className="section-title">Screen Time</div>
-                    <div className="section-subtitle">Manage screen time blocks</div>
-                  </div>
-                </div>
-                
-                <Timer child={child} onSpend={() => {
-                  app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)
-                }}/>
-
-                <div className="hstack">
-                  <button className="btn" onClick={() => app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)}>Spend 30m</button>
-                </div>
-              </div>
-
-              <div className="section">
-                <div className="section-header">
-                  <div>
-                    <div className="section-title">Cash-out Preview</div>
-                    <div className="section-subtitle">Available for bank day</div>
-                  </div>
-                </div>
-                <CashPreview childId={child.id} />
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="panel">
-        <div className="section-header">
-          <div>
-            <div className="section-title">Team Bonus</div>
-            <div className="section-subtitle">Reward both children when all baselines are complete</div>
-          </div>
-          <button className="btn primary" disabled={teamBonusGiven(ledger, ymd)} onClick={giveTeamBonus}>
-            Give +{settings.teamBonusPoints} to both
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-2">
         <div className="panel">
           <div className="section-header">
             <div>
@@ -329,7 +223,7 @@ export default function ParentDashboard(){
         <div className="panel">
           <div className="section-header">
             <div>
-              <div className="section-title">Active Screen Time Sessions</div>
+              <div className="section-title">Screen Time Sessions</div>
               <div className="section-subtitle">Monitor and control children's screen time</div>
             </div>
           </div>
@@ -395,6 +289,113 @@ export default function ParentDashboard(){
         </div>
         </div>
       </div>
+
+      <div className="grid grid-2">
+        {household.children.map(child => {
+          const balance = calcBalancePoints(ledger, child.id)
+          const spentFromSessions = spentScreenMinutesFromSessions(app.screenTimeSessions, child.id, ymd)
+          const spentFromLedger = spentScreenMinutesFromLedger(ledger, child.id, ymd)
+          const spentToday = spentFromSessions + spentFromLedger
+          const cap = getDailyCapMinutes(child, new Date(), settings)
+          const cutoff = getCutoffMinutes(child, new Date(), settings)
+          const cutoffTime = new Date()
+          cutoffTime.setHours(Math.floor(cutoff/60), cutoff%60, 0, 0)
+          const cutoffStr = formatTime(cutoffTime, settings.timezone)
+          return (
+            <div key={child.id} className="panel">
+              <div className="section-header">
+                <div>
+                  <h2>{child.name}</h2>
+                  <div className="section-subtitle">Age {child.age} • Level {child.level}</div>
+                </div>
+                <Link className="btn primary" to={`/child/${child.id}`}>Child View</Link>
+              </div>
+              
+              <div className="grid grid-3">
+                <div className="stat-card">
+                  <div className="stat-label">Points Balance</div>
+                  <div className="stat-value">{balance}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Screen Time Today</div>
+                  <div className="stat-value">{spentToday}m</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Cut-off Time</div>
+                  <div className="stat-value">{cutoffStr}</div>
+                </div>
+              </div>
+
+              <TaskButtons child={child} date={new Date()}/>
+
+              <div className="section">
+                <div className="section-header">
+                  <div>
+                    <div className="section-title">Quick Actions</div>
+                    <div className="section-subtitle">Deductions and corrections</div>
+                  </div>
+                </div>
+                
+                <div className="help-text">
+                  💡 <strong>Accountability System:</strong> When children mark tasks as complete, you can verify them. 
+                  If a task wasn't actually done, it will reduce their points by 30% as a penalty.
+                </div>
+                
+                <div className="grid grid-3">
+                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_REMINDER', 'Second reminder', 5)}>–5 Reminder</button>
+                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_RUDE', 'Rude language', 10)}>–10 Rude</button>
+                  <button className="btn warn" onClick={() => app.addDeduction(child.id, 'DED_TIMER_IGNORED', 'Timer ignored', 10)}>–10 Timer Ignored</button>
+                </div>
+                <div className="grid grid-3">
+                  <button className="btn bad" onClick={() => app.addLockout(child.id, 'LYING_SNEAK', 30)}>Lockout (Lying/Sneak –30)</button>
+                  <button className="btn bad" onClick={() => app.addLockout(child.id, 'UNSAFE', 20)}>Lockout (Unsafe –20)</button>
+                  <button className="btn good" onClick={() => app.addReset(child.id)}>Reset Complete</button>
+                </div>
+              </div>
+
+              <div className="section">
+                <div className="section-header">
+                  <div>
+                    <div className="section-title">Screen Time</div>
+                    <div className="section-subtitle">Manage screen time blocks</div>
+                  </div>
+                </div>
+                
+                <Timer child={child} onSpend={() => {
+                  app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)
+                }}/>
+
+                <div className="hstack">
+                  <button className="btn" onClick={() => app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)}>Spend 30m</button>
+                </div>
+              </div>
+
+              <div className="section">
+                <div className="section-header">
+                  <div>
+                    <div className="section-title">Cash-out Preview</div>
+                    <div className="section-subtitle">Available for bank day</div>
+                  </div>
+                </div>
+                <CashPreview childId={child.id} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="panel">
+        <div className="section-header">
+          <div>
+            <div className="section-title">Team Bonus</div>
+            <div className="section-subtitle">Reward both children when all baselines are complete</div>
+          </div>
+          <button className="btn primary" disabled={teamBonusGiven(ledger, ymd)} onClick={giveTeamBonus}>
+            Give +{settings.teamBonusPoints} to both
+          </button>
+        </div>
+      </div>
+
 
       <div className="panel">
         <div className="section-header">
