@@ -2,6 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Apple-Quality Design System - Base Styles */
+@layer base {
+  /* Improved default styles */
+  * {
+    @apply border-neutral-200;
+  }
+
+  html {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-neutral-50 text-neutral-900;
+    @apply font-sans;
+  }
+
+  /* Focus visible for accessibility */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Respect user's motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Improved utility classes */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-in {
+    animation: fadeIn 250ms ease-out;
+  }
+
+  .animate-out {
+    animation: fadeOut 200ms ease-in;
+  }
+}
+
 :root{
   /* Design System Tokens */
   --bg: #f9fafb;
@@ -34,6 +90,62 @@
   --kid-panel: #ffffff;
   --kid-text: #1f2937;
   --kid-sub: #6b7280;
+  
+  /* Tailwind CSS v4 color tokens */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  
+  --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-200: #a7f3d0;
+  --color-success-300: #6ee7b7;
+  --color-success-400: #34d399;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+  --color-success-800: #065f46;
+  --color-success-900: #064e3b;
+  
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+  
+  --color-error-50: #fef2f2;
+  --color-error-100: #fee2e2;
+  --color-error-200: #fecaca;
+  --color-error-300: #fca5a5;
+  --color-error-400: #f87171;
+  --color-error-500: #ef4444;
+  --color-error-600: #dc2626;
+  --color-error-700: #b91c1c;
+  --color-error-800: #991b1b;
+  --color-error-900: #7f1d1d;
 }
 *{box-sizing:border-box}
 html,body,#root{height:100%}
@@ -458,19 +570,45 @@ th{text-align:left;color:#b3b8c5;font-weight:600}
   }
 }
 
-/* Dark mode support for mobile */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f172a;
-    --panel: #1e293b;
-    --muted: #334155;
-    --text: #f1f5f9;
-    --sub: #94a3b8;
-    --border: #334155;
-    --border-light: #475569;
-    --section-bg: #1e293b;
-    --card-bg: #1e293b;
-  }
+/* Dark mode support */
+.dark {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --muted: #334155;
+  --text: #f1f5f9;
+  --sub: #94a3b8;
+  --border: #334155;
+  --border-light: #475569;
+  --section-bg: #1e293b;
+  --card-bg: #1e293b;
+}
+
+.dark .bg-white {
+  background-color: var(--panel);
+}
+
+.dark .text-gray-900 {
+  color: var(--text);
+}
+
+.dark .text-gray-600 {
+  color: var(--sub);
+}
+
+.dark .text-gray-500 {
+  color: var(--sub);
+}
+
+.dark .border-gray-200 {
+  border-color: var(--border);
+}
+
+.dark .bg-gray-50 {
+  background-color: var(--muted);
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--muted);
 }
 
 /* High DPI displays */

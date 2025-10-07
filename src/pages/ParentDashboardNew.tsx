@@ -6,21 +6,23 @@ import TaskButtons from '../components/TaskButtons'
 import Timer from '../components/Timer'
 import { useRealtimeUpdates } from '../hooks/useRealtimeUpdates'
 import { useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 import { DashboardCard } from '../components/ui/dashboard-card'
 import { StatCard } from '../components/ui/stat-card'
 import { ActionButton } from '../components/ui/action-button'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { 
-  Users, 
-  Clock, 
-  DollarSign, 
-  CheckCircle, 
+import {
+  Users,
+  Clock,
+  DollarSign,
+  CheckCircle,
   AlertCircle,
   TrendingUp,
   Activity,
-  Settings
+  Settings,
+  Target
 } from 'lucide-react'
 
 export default function ParentDashboard(){
@@ -84,7 +86,7 @@ export default function ParentDashboard(){
 
   const giveTeamBonus = () => {
     if (teamBonusGiven(ledger, ymd)) return
-    const allBaselinesDoneFor = (childId: string) => settings.baselineTasks.every(t => baselineDone(ledger, childId, ymd, t.code))
+    const allBaselinesDoneFor = (childId: string) => settings.baselineTasks.filter(t => t.childId === childId).every(t => baselineDone(ledger, childId, ymd, t.code))
     const both = household.children.every(c => allBaselinesDoneFor(c.id))
     if (!both) { alert('Both children need all baselines done to give team bonus.'); return }
     household.children.forEach(c => app.addEarn(c.id, 'TEAM_BONUS', 'Team bonus (both finished baselines)', settings.teamBonusPoints))
@@ -123,12 +125,14 @@ export default function ParentDashboard(){
         </div>
         <div className="flex items-center space-x-3">
           <Badge variant="secondary" className="text-sm">
-            {household.children.length} children
+            {household.children.length} {household.children.length === 1 ? 'child' : 'children'}
           </Badge>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
+          <Link to="/settings">
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -189,7 +193,10 @@ export default function ParentDashboard(){
                           size="sm"
                           onClick={() => {
                             const taskCode = e.code.replace('REQUEST_', '')
-                            app.addEarn(child.id, taskCode, e.label.replace('Request: ', ''), 10)
+                            // Find the task in settings to get the correct points
+                            const task = [...settings.baselineTasks, ...settings.extraTasks].find(t => t.code === taskCode)
+                            const points = task?.points || 10
+                            app.addEarn(child.id, taskCode, e.label.replace('Request: ', ''), points, true)
                             app.removeLedger(e.id)
                           }}
                         >
@@ -438,7 +445,7 @@ export default function ParentDashboard(){
       </div>
 
       {/* Children Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div id="children-section" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {household.children.map(child => {
           const balance = calcBalancePoints(ledger, child.id)
           const spentFromSessions = spentScreenMinutesFromSessions(app.screenTimeSessions, child.id, ymd)
@@ -453,17 +460,32 @@ export default function ParentDashboard(){
           return (
             <DashboardCard
               key={child.id}
-              title={child.name}
-              description={`Age ${child.age} • Level ${child.level}`}
-              headerAction={
-                <Link to={`/child/${child.id}`}>
-                  <Button variant="outline" size="sm">
-                    Child View
-                  </Button>
-                </Link>
-              }
+              padding="none"
             >
-              <div className="space-y-6">
+              {/* Animated Child Name Header */}
+              <div className="relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-500 via-primary-600 to-secondary-600 opacity-10" />
+                <div className="relative px-6 py-8 text-center">
+                  <motion.h2
+                    className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent mb-2"
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, ease: [0.4, 0.0, 0.2, 1] }}
+                  >
+                    {child.name}
+                  </motion.h2>
+                  <motion.p
+                    className="text-sm text-neutral-500 font-medium"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5, delay: 0.1 }}
+                  >
+                    Age {child.age} • Level {child.level}
+                  </motion.p>
+                </div>
+              </div>
+
+              <div className="space-y-6 px-6 pb-6">
                 {/* Child Stats */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
@@ -479,6 +501,43 @@ export default function ParentDashboard(){
                     <div className="text-xs text-gray-500">Cut-off</div>
                   </div>
                 </div>
+
+                {/* Goals Progress */}
+                {child.goals && child.goals.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <Target className="h-4 w-4 text-primary-500" />
+                      Goals Progress
+                    </h4>
+                    <div className="space-y-3">
+                      {(child.goals || []).map(goal => {
+                        const currentDollars = balance / settings.pointsPerDollar
+                        const progress = Math.min(100, (currentDollars / goal.targetAmount) * 100)
+                        return (
+                          <div key={goal.id} className="p-3 bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-200 rounded-lg">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex-1">
+                                <div className="text-sm font-bold text-primary-600">{goal.name}</div>
+                                <div className="text-xs text-neutral-600">
+                                  ${currentDollars.toFixed(2)} / ${goal.targetAmount}
+                                </div>
+                              </div>
+                              <div className="text-xs font-bold text-primary-600">{progress.toFixed(0)}%</div>
+                            </div>
+                            <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
+                              <motion.div
+                                className="h-full bg-gradient-to-r from-primary-500 to-secondary-500"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progress}%` }}
+                                transition={{ duration: 0.5, ease: [0.4, 0.0, 0.2, 1] }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Tasks */}
                 <div>
@@ -566,6 +625,7 @@ export default function ParentDashboard(){
 
       {/* Activity Log */}
       <DashboardCard
+        id="activity-section"
         title="All Activity"
         description="All points earned and spent"
         headerAction={
@@ -766,3 +826,4 @@ function CashPreview({ childId }:{ childId: string }){
     </Card>
   )
 }
+

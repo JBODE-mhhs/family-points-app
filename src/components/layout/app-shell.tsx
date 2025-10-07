@@ -26,29 +26,33 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)}
-        isChildView={isChildView}
-      />
-      
+      {/* Sidebar - hide for child view */}
+      {!isChildView && (
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          isChildView={isChildView}
+        />
+      )}
+
       {/* Main content area */}
-      <div className="lg:pl-64">
+      <div className={isChildView ? '' : 'lg:pl-64'}>
         {/* Top bar */}
-        <TopBar 
+        <TopBar
           onMenuClick={() => setSidebarOpen(true)}
           isChildView={isChildView}
           notificationCount={notificationCount}
         />
-        
+
         {/* Page content */}
         <main className="flex-1">
-          <div className="p-4 lg:p-6">
-            {/* Breadcrumbs */}
-            <div className="mb-6">
-              <Breadcrumb />
-            </div>
+          <div className="p-4 lg:p-8 max-w-5xl mx-auto">
+            {/* Breadcrumbs - hide for child view */}
+            {!isChildView && (
+              <div className="mb-6">
+                <Breadcrumb />
+              </div>
+            )}
             {children}
           </div>
         </main>

@@ -11,12 +11,14 @@ const defaultSettings = (): Settings => ({
   schooldayCapMinutes: 120,
   weekendCapMinutes: 300,
   noScreenBufferMinutes: 30,
-  teamBonusPoints: 10,
   extrasCapSchool: 25,
   extrasCapWeekend: 40,
   bankDay: 5, // Friday (weekend starts Friday)
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   autoBalanceEnabled: false,
+  autoResetEnabled: false,
+  autoResetTime: '00:00',
+  lastAutoResetDate: undefined,
   baselineTasks: [
     { id: 'b1', code: 'BASE_MORNING', label: 'Morning routine on time', points: 10, category: 'baseline' },
     { id: 'b2', code: 'BASE_AFTER_SCHOOL', label: 'After-school reset', points: 5, category: 'baseline' },
@@ -49,17 +51,17 @@ export interface AppState {
   ledger: LedgerEntry[]
   timers: Record<string, TimerState>
   cashOutRequests: CashOutRequest[]
-  screenTimeSessions: Record<string, { 
-    childId: string; 
-    totalMinutes: number; 
-    startTime: number; 
-    pausedAt?: number; 
+  screenTimeSessions: Record<string, {
+    childId: string;
+    totalMinutes: number;
+    startTime: number;
+    pausedAt?: number;
     totalPausedTime: number; // Track total time paused
-    status: 'running' | 'paused' | 'completed' 
+    status: 'running' | 'paused' | 'completed'
   }>
   // actions
   createHousehold: (name: string, children: Array<{ name: string; age: number; weeklyCashCap: number; bedSchool: string; bedWeekend: string }>, parentUsername?: string, parentPassword?: string) => void
-  addEarn: (childId: string, code: string, label: string, points: number) => void
+  addEarn: (childId: string, code: string, label: string, points: number, verified?: boolean) => void
   addSpend: (childId: string, code: string, label: string, points: number) => void
   addDeduction: (childId: string, code: string, label: string, points: number) => void
   addLockout: (childId: string, reason: string, points: number) => void
@@ -67,6 +69,7 @@ export interface AppState {
   removeLedger: (id: string) => void
   updateSettings: (fn: (s: Settings) => Settings) => void
   updateChild: (childId: string, fn: (c: any) => any) => void
+  addChild: (name: string, age: number, weeklyCashCap: number, bedSchool: string, bedWeekend: string) => void
   startTimer: (childId: string, endTime: number) => void
   clearTimer: (childId: string) => void
   startScreenTime: (childId: string, minutes: number) => void
@@ -82,6 +85,11 @@ export interface AppState {
   dailyTaskReset: () => void
   requestCashOut: (childId: string, amount: number) => void
   approveCashOut: (requestId: string, approved?: boolean) => void
+  approveScreenTime: (requestId: string, childId: string, minutes: number, cost: number, label: string) => void
+  addGoal: (childId: string, name: string, targetAmount: number) => void
+  updateGoal: (childId: string, goalId: string, name: string, targetAmount: number) => void
+  deleteGoal: (childId: string, goalId: string) => void
+  deleteChild: (childId: string) => void
 }
 
 const nowYMD = () => todayYMD()
@@ -101,7 +109,8 @@ export const useApp = create<AppState>()(persist(
         bedtimes: { school: k.bedSchool, weekend: k.bedWeekend },
         level: 1,
         starsThisWeek: 0,
-        weeklyCashCap: k.weeklyCashCap
+        weeklyCashCap: k.weeklyCashCap,
+        goals: []
       }))
       const household: Household = {
         id: uuid(),
@@ -116,18 +125,28 @@ export const useApp = create<AppState>()(persist(
       }
       return { household }
     }),
-    addEarn: (childId, code, label, points) => set((state) => ({
-      ledger: state.ledger.concat([{
+    addEarn: (childId, code, label, points, verified) => set((state) => {
+      const entry: LedgerEntry = {
         id: uuid(),
         childId,
         date: nowYMD(),
         ts: Date.now(),
-        type: code === 'TEAM_BONUS' ? 'bonus' : 'earn',
+        type: 'earn',
         code,
         label,
         points
-      } as LedgerEntry])
-    })),
+      }
+
+      // If verified is explicitly set to true, add verification fields
+      if (verified === true) {
+        entry.verified = true
+        entry.verificationTime = Date.now()
+      }
+
+      return {
+        ledger: state.ledger.concat([entry])
+      }
+    }),
     addSpend: (childId, code, label, points) => set((state) => ({
       ledger: state.ledger.concat([{
         id: uuid(),
@@ -186,6 +205,21 @@ export const useApp = create<AppState>()(persist(
         children: state.household.children.map(c => c.id === childId ? fn({ ...c }) : c)
       } : state.household
     })),
+    addChild: (name, age, weeklyCashCap, bedSchool, bedWeekend) => set((state) => ({
+      household: state.household ? {
+        ...state.household,
+        children: state.household.children.concat([{
+          id: uuid(),
+          name,
+          age,
+          bedtimes: { school: bedSchool, weekend: bedWeekend },
+          level: 1,
+          starsThisWeek: 0,
+          weeklyCashCap,
+          goals: []
+        }])
+      } : state.household
+    })),
     startTimer: (childId, endTime) => set((state) => ({
       timers: { ...state.timers, [childId]: { status: 'running', childId, endTime, startedAt: Date.now() } }
     })),
@@ -226,44 +260,101 @@ export const useApp = create<AppState>()(persist(
     }),
     autoBalancePoints: () => set((state) => {
       if (!state.household) return state
-      
+
       const settings = state.household.settings
       const children = state.household.children
-      
-      // Calculate target points for each child (weekly cap * points per dollar)
-      const childTargets = children.map(child => ({
-        childId: child.id,
-        targetPoints: child.weeklyCashCap * settings.pointsPerDollar,
-        currentBalance: state.ledger.filter(l => l.childId === child.id).reduce((a, b) => a + b.points, 0)
-      }))
-      
-      // Calculate average target points
-      const totalTarget = childTargets.reduce((sum, child) => sum + child.targetPoints, 0)
-      const averageTarget = totalTarget / children.length
-      
-      // Adjust each child's points to match their weekly cap target
-      const adjustments = childTargets.map(child => ({
-        childId: child.childId,
-        adjustment: Math.round((child.targetPoints - child.currentBalance) * 0.1) // 10% adjustment toward target
-      }))
-      
-      const newLedger = [...state.ledger]
-      adjustments.forEach(adj => {
-        if (adj.adjustment !== 0) {
-          newLedger.push({
-            id: uuid(),
-            childId: adj.childId,
-            date: nowYMD(),
-            ts: Date.now(),
-            type: 'bonus',
-            code: 'AUTO_BALANCE',
-            label: `Auto-balance toward weekly cap (${adj.adjustment > 0 ? '+' : ''}${adj.adjustment})`,
-            points: adj.adjustment
-          } as LedgerEntry)
+
+      // Define point weights for each difficulty (high tasks worth more)
+      // Using a 1:2:3 ratio (low:medium:high)
+      const lowWeight = 1
+      const mediumWeight = 2
+      const highWeight = 3
+
+      // Update tasks for each child separately based on their weekly cap
+      const updatedBaselineTasks = settings.baselineTasks.map(task => {
+        // Find the child this task belongs to
+        const child = children.find(c => c.id === task.childId)
+        if (!child) return task // Keep task unchanged if no child found
+
+        // Calculate target points per week for this specific child
+        const targetPointsPerWeek = child.weeklyCashCap * settings.pointsPerDollar
+
+        // Count this child's tasks by difficulty level
+        const childTasks = [...settings.baselineTasks, ...settings.extraTasks].filter(t => t.childId === child.id)
+        const lowCount = childTasks.filter(t => (t.difficulty || 'medium') === 'low').length
+        const mediumCount = childTasks.filter(t => (t.difficulty || 'medium') === 'medium').length
+        const highCount = childTasks.filter(t => (t.difficulty || 'medium') === 'high').length
+
+        // Calculate total weighted units available per day for this child
+        const totalWeightPerDay = (lowCount * lowWeight) + (mediumCount * mediumWeight) + (highCount * highWeight)
+        const totalWeightPerWeek = totalWeightPerDay * 7
+
+        if (totalWeightPerDay === 0) return task // No tasks to balance for this child
+
+        // Calculate points per weight unit for this child
+        const pointsPerWeightUnit = targetPointsPerWeek / totalWeightPerWeek
+
+        // Calculate actual point values based on difficulty for this child
+        const lowPoints = Math.max(1, Math.round(pointsPerWeightUnit * lowWeight))
+        const mediumPoints = Math.max(2, Math.round(pointsPerWeightUnit * mediumWeight))
+        const highPoints = Math.max(3, Math.round(pointsPerWeightUnit * highWeight))
+
+        // Update this task's points based on its difficulty
+        return {
+          ...task,
+          difficulty: task.difficulty || 'medium',
+          points: task.difficulty === 'low' ? lowPoints :
+                  task.difficulty === 'high' ? highPoints : mediumPoints
         }
       })
-      
-      return { ledger: newLedger }
+
+      const updatedExtraTasks = settings.extraTasks.map(task => {
+        // Find the child this task belongs to
+        const child = children.find(c => c.id === task.childId)
+        if (!child) return task // Keep task unchanged if no child found
+
+        // Calculate target points per week for this specific child
+        const targetPointsPerWeek = child.weeklyCashCap * settings.pointsPerDollar
+
+        // Count this child's tasks by difficulty level
+        const childTasks = [...settings.baselineTasks, ...settings.extraTasks].filter(t => t.childId === child.id)
+        const lowCount = childTasks.filter(t => (t.difficulty || 'medium') === 'low').length
+        const mediumCount = childTasks.filter(t => (t.difficulty || 'medium') === 'medium').length
+        const highCount = childTasks.filter(t => (t.difficulty || 'medium') === 'high').length
+
+        // Calculate total weighted units available per day for this child
+        const totalWeightPerDay = (lowCount * lowWeight) + (mediumCount * mediumWeight) + (highCount * highWeight)
+        const totalWeightPerWeek = totalWeightPerDay * 7
+
+        if (totalWeightPerDay === 0) return task // No tasks to balance for this child
+
+        // Calculate points per weight unit for this child
+        const pointsPerWeightUnit = targetPointsPerWeek / totalWeightPerWeek
+
+        // Calculate actual point values based on difficulty for this child
+        const lowPoints = Math.max(1, Math.round(pointsPerWeightUnit * lowWeight))
+        const mediumPoints = Math.max(2, Math.round(pointsPerWeightUnit * mediumWeight))
+        const highPoints = Math.max(3, Math.round(pointsPerWeightUnit * highWeight))
+
+        // Update this task's points based on its difficulty
+        return {
+          ...task,
+          difficulty: task.difficulty || 'medium',
+          points: task.difficulty === 'low' ? lowPoints :
+                  task.difficulty === 'high' ? highPoints : mediumPoints
+        }
+      })
+
+      return {
+        household: {
+          ...state.household,
+          settings: {
+            ...settings,
+            baselineTasks: updatedBaselineTasks,
+            extraTasks: updatedExtraTasks
+          }
+        }
+      }
     }),
     generateInviteCode: (childId) => {
       const child = get().household?.children.find(c => c.id === childId)
@@ -478,13 +569,13 @@ export const useApp = create<AppState>()(persist(
     approveCashOut: (requestId: string, approved = true) => set((state) => {
       const request = state.cashOutRequests.find(r => r.id === requestId)
       if (!request) return state
-      
+
       const newRequests = state.cashOutRequests.map(r =>
         r.id === requestId
           ? { ...r, status: (approved ? 'approved' : 'rejected') as 'approved' | 'rejected', processedAt: Date.now(), processedBy: 'Parent' }
           : r
       )
-      
+
       if (approved) {
         // Add the cash-out to the ledger
         const newLedgerEntry: LedgerEntry = {
@@ -497,15 +588,90 @@ export const useApp = create<AppState>()(persist(
           label: `Cash-out $${request.amount}`,
           points: -request.points
         }
-        
-        return { 
+
+        return {
           cashOutRequests: newRequests,
           ledger: state.ledger.concat([newLedgerEntry])
         }
       }
-      
+
       return { cashOutRequests: newRequests }
-    })
+    }),
+
+    approveScreenTime: (requestId: string, childId: string, minutes: number, cost: number, label: string) => set((state) => {
+      // Perform all three operations in a single atomic state update
+      return {
+        // 1. Remove the screen time request from ledger
+        ledger: state.ledger
+          .filter(l => l.id !== requestId)
+          .concat([{
+            id: uuid(),
+            childId,
+            date: nowYMD(),
+            ts: Date.now(),
+            type: 'spend',
+            code: 'SCREEN_APPROVED',
+            label: `Approved: ${label}`,
+            points: -Math.abs(cost)
+          } as LedgerEntry]),
+
+        // 2. Start the screen time session
+        screenTimeSessions: {
+          ...state.screenTimeSessions,
+          [childId]: {
+            childId,
+            totalMinutes: minutes,
+            startTime: Date.now(),
+            totalPausedTime: 0,
+            status: 'running'
+          }
+        }
+      }
+    }),
+    addGoal: (childId, name, targetAmount) => set((state) => ({
+      household: state.household ? {
+        ...state.household,
+        children: state.household.children.map(c =>
+          c.id === childId
+            ? { ...c, goals: [...(c.goals || []), { id: uuid(), name, targetAmount, createdDate: nowYMD() }] }
+            : c
+        )
+      } : state.household
+    })),
+    updateGoal: (childId, goalId, name, targetAmount) => set((state) => ({
+      household: state.household ? {
+        ...state.household,
+        children: state.household.children.map(c =>
+          c.id === childId
+            ? { ...c, goals: (c.goals || []).map(g => g.id === goalId ? { ...g, name, targetAmount } : g) }
+            : c
+        )
+      } : state.household
+    })),
+    deleteGoal: (childId, goalId) => set((state) => ({
+      household: state.household ? {
+        ...state.household,
+        children: state.household.children.map(c =>
+          c.id === childId
+            ? { ...c, goals: (c.goals || []).filter(g => g.id !== goalId) }
+            : c
+        )
+      } : state.household
+    })),
+    deleteChild: (childId) => set((state) => ({
+      household: state.household ? {
+        ...state.household,
+        children: state.household.children.filter(c => c.id !== childId)
+      } : state.household,
+      // Also remove all ledger entries for this child
+      ledger: state.ledger.filter(l => l.childId !== childId),
+      // Remove cash out requests for this child
+      cashOutRequests: state.cashOutRequests.filter(r => r.childId !== childId),
+      // Remove screen time sessions for this child
+      screenTimeSessions: Object.fromEntries(
+        Object.entries(state.screenTimeSessions).filter(([id]) => id !== childId)
+      )
+    }))
   }),
   { name: 'family-points-app' }
 ))

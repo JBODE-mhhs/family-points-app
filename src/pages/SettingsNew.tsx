@@ -572,3 +572,4 @@ function TaskEditor({ list, onChange }:{ list: TaskDef[]; onChange:(l:TaskDef[])
     </div>
   )
 }
+

@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useApp } from '../state/store'
 import { useRealtimeUpdates } from '../hooks/useRealtimeUpdates'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
+import { Badge } from '../components/ui/badge'
+import { Users, UserPlus, Trash2, Sparkles, Shield, Info } from 'lucide-react'
+import { staggerContainer, staggerItem, fadeVariants } from '../theme/motion'
 
 export default function Setup(){
   const nav = useNavigate()
@@ -73,109 +80,251 @@ export default function Setup(){
   }
 
   return (
-    <div className="container">
-      <div className="panel">
-        <div className="section-header">
-          <div>
-            <h1>Welcome to Family Points! 👋</h1>
-            <div className="section-subtitle">Set up your family's point system</div>
-          </div>
-        </div>
-        
-        <div className="notice">
-          <strong>Default Settings:</strong> School days 2h cap, weekends 5h/day cap, 30m buffer before bed, 1 point = 1 minute, 50 points = $1. You can customize everything later in settings.
-        </div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-primary-50/20 to-secondary-50/20 py-12 px-4">
+      <motion.div
+        className="max-w-4xl mx-auto space-y-8"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* Hero Header */}
+        <motion.div variants={staggerItem} className="text-center space-y-4">
+          <motion.div
+            className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-500 to-secondary-600 shadow-elevation-3 mb-4"
+            animate={{
+              scale: [1, 1.05, 1],
+              rotate: [0, 5, -5, 0]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              repeatDelay: 3
+            }}
+          >
+            <Sparkles className="h-10 w-10 text-white" />
+          </motion.div>
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
+            Welcome to Family Points!
+          </h1>
+          <p className="text-xl text-neutral-600 max-w-2xl mx-auto">
+            Set up your family's point system in just a few steps
+          </p>
+        </motion.div>
 
-      <div className="panel">
-        <div className="vstack">
-          <label className="label">Family Name</label>
-          <input className="input" value={family} onChange={e=>setFamily(e.target.value)} placeholder="Enter your family name" />
-        </div>
-      </div>
-
-      <div className="panel">
-        <div className="section-header">
-          <div>
-            <div className="section-title">Children</div>
-          </div>
-          <button className="btn" onClick={addChild}>+ Add Child</button>
-        </div>
-        
-        <div className="grid grid-2">
-          {children.map((child, i) => (
-            <div className="section" key={i}>
-              <div className="section-header">
-                <div>
-                  <div className="section-title">Child {i + 1}</div>
+        {/* Info Card */}
+        <motion.div variants={staggerItem}>
+          <Card variant="elevated" className="border-primary-100 bg-gradient-to-br from-primary-50/50 to-white">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 p-3 rounded-xl bg-primary-100">
+                  <Info className="h-6 w-6 text-primary-600" />
                 </div>
-                {children.length > 1 && (
-                  <button className="btn warn small" onClick={() => removeChild(i)}>Remove</button>
-                )}
-              </div>
-              
-              <div className="vstack">
-                <div>
-                  <label className="label">Name</label>
-                  <input className="input" value={child.name} onChange={e=>updateChild(i, 'name', e.target.value)} placeholder="Child's name"/>
-                </div>
-                <div>
-                  <label className="label">Age</label>
-                  <input className="input" type="number" value={child.age} onChange={e=>updateChild(i, 'age', parseInt(e.target.value||'0',10))} min="1" max="18"/>
-                </div>
-                <div>
-                  <label className="label">Weekly cash cap ($)</label>
-                  <input className="input" type="number" value={child.weeklyCashCap} onChange={e=>updateChild(i, 'weeklyCashCap', parseInt(e.target.value||'0',10))} min="0" max="100"/>
-                </div>
-                <div className="grid grid-2">
-                  <div>
-                    <label className="label">School bedtime</label>
-                    <input className="input" value={child.bedSchool} onChange={e=>updateChild(i, 'bedSchool', e.target.value)} placeholder="9:00 PM"/>
-                  </div>
-                  <div>
-                    <label className="label">Weekend bedtime</label>
-                    <input className="input" value={child.bedWeekend} onChange={e=>updateChild(i, 'bedWeekend', e.target.value)} placeholder="10:00 PM"/>
-                  </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-neutral-900 mb-2">Default Settings</h3>
+                  <p className="text-sm text-neutral-600 leading-relaxed">
+                    School days: 2h cap • Weekends: 5h/day cap • 30m buffer before bed • 1 point = 1 minute • 50 points = $1
+                    <br />
+                    <span className="text-primary-600 font-medium">You can customize everything later in settings.</span>
+                  </p>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      <div className="panel">
-        <div className="section-header">
-          <div>
-            <div className="section-title">Parent Account</div>
-            <div className="section-subtitle">Create your parent login credentials</div>
-          </div>
-        </div>
-        
-        <div className="grid grid-2">
-          <div className="vstack">
-            <label className="label">Username</label>
-            <input className="input" value={parentUsername} onChange={e=>setParentUsername(e.target.value)} placeholder="Enter username" />
-          </div>
-          <div className="vstack">
-            <label className="label">Password</label>
-            <input className="input" type="password" value={parentPassword} onChange={e=>setParentPassword(e.target.value)} placeholder="Enter password" />
-          </div>
-        </div>
-        
-        <div className="help-text">
-          💡 You can invite another parent later in the settings. This account will be the primary administrator.
-        </div>
-      </div>
+        {/* Family Name */}
+        <motion.div variants={staggerItem}>
+          <Card hover>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary-500" />
+                Family Name
+              </CardTitle>
+              <CardDescription>What should we call your household?</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Input
+                value={family}
+                onChange={e => setFamily(e.target.value)}
+                placeholder="Enter your family name"
+                className="text-lg"
+              />
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      <div className="panel">
-        <div className="section-header">
-          <div>
-            <div className="section-title">Ready to Start?</div>
-            <div className="section-subtitle">Create your household and begin tracking points</div>
-          </div>
-          <button className="btn primary" onClick={start}>Create Household</button>
-        </div>
-      </div>
+        {/* Children */}
+        <motion.div variants={staggerItem}>
+          <Card hover>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserPlus className="h-5 w-5 text-primary-500" />
+                    Children
+                  </CardTitle>
+                  <CardDescription>Add your children to get started</CardDescription>
+                </div>
+                <Button
+                  onClick={addChild}
+                  leftIcon={<UserPlus className="h-4 w-4" />}
+                  size="sm"
+                >
+                  Add Child
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {children.map((child, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.1 }}
+                  >
+                    <Card variant="outlined" className="relative">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <Badge variant="default" size="lg">
+                            Child {i + 1}
+                          </Badge>
+                          {children.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeChild(i)}
+                            >
+                              <Trash2 className="h-4 w-4 text-error-500" />
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-700 mb-2">
+                            Name
+                          </label>
+                          <Input
+                            value={child.name}
+                            onChange={e => updateChild(i, 'name', e.target.value)}
+                            placeholder="Child's name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-700 mb-2">
+                            Age
+                          </label>
+                          <Input
+                            type="number"
+                            value={child.age}
+                            onChange={e => updateChild(i, 'age', parseInt(e.target.value || '0', 10))}
+                            min="1"
+                            max="18"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-700 mb-2">
+                            Weekly Cash Cap ($)
+                          </label>
+                          <Input
+                            type="number"
+                            value={child.weeklyCashCap}
+                            onChange={e => updateChild(i, 'weeklyCashCap', parseInt(e.target.value || '0', 10))}
+                            min="0"
+                            max="100"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-neutral-700 mb-2">
+                              School Bedtime
+                            </label>
+                            <Input
+                              value={child.bedSchool}
+                              onChange={e => updateChild(i, 'bedSchool', e.target.value)}
+                              placeholder="9:00 PM"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-neutral-700 mb-2">
+                              Weekend Bedtime
+                            </label>
+                            <Input
+                              value={child.bedWeekend}
+                              onChange={e => updateChild(i, 'bedWeekend', e.target.value)}
+                              placeholder="10:00 PM"
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Parent Account */}
+        <motion.div variants={staggerItem}>
+          <Card hover>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary-500" />
+                Parent Account
+              </CardTitle>
+              <CardDescription>Create your parent login credentials</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Username
+                  </label>
+                  <Input
+                    value={parentUsername}
+                    onChange={e => setParentUsername(e.target.value)}
+                    placeholder="Enter username"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Password
+                  </label>
+                  <Input
+                    type="password"
+                    value={parentPassword}
+                    onChange={e => setParentPassword(e.target.value)}
+                    placeholder="Enter password"
+                  />
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-primary-50 border border-primary-100">
+                <Info className="h-5 w-5 text-primary-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-primary-900">
+                  You can invite another parent later in the settings. This account will be the primary administrator.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Create Button */}
+        <motion.div
+          variants={staggerItem}
+          className="flex justify-center pt-4"
+        >
+          <Button
+            onClick={start}
+            size="lg"
+            className="px-12 text-lg shadow-elevation-3 hover:shadow-elevation-4"
+            leftIcon={<Sparkles className="h-5 w-5" />}
+          >
+            Create Household
+          </Button>
+        </motion.div>
+      </motion.div>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { cn } from "../../lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card"
 
 interface DashboardCardProps {
+  id?: string
   title: string
   description?: string
   children: React.ReactNode
@@ -10,15 +11,16 @@ interface DashboardCardProps {
   headerAction?: React.ReactNode
 }
 
-export function DashboardCard({ 
-  title, 
-  description, 
-  children, 
+export function DashboardCard({
+  id,
+  title,
+  description,
+  children,
   className,
-  headerAction 
+  headerAction
 }: DashboardCardProps) {
   return (
-    <Card className={cn("h-full", className)}>
+    <Card id={id} className={cn("h-full [&]:hover:shadow-elevation-2", className)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div className="space-y-1">
           <CardTitle className="text-lg font-semibold">{title}</CardTitle>
@@ -40,3 +42,4 @@ export function DashboardCard({
     </Card>
   )
 }
+

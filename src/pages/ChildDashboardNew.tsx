@@ -5,29 +5,31 @@ import { calcBalancePoints, getDailyCapMinutes, spentScreenMinutesFromSessions, 
 import ChildTaskDisplay from '../components/ChildTaskDisplay'
 import ScreenTimeTimer from '../components/ScreenTimeTimer'
 import { useRealtimeUpdates } from '../hooks/useRealtimeUpdates'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DashboardCard } from '../components/ui/dashboard-card'
 import { StatCard } from '../components/ui/stat-card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { 
-  Star, 
-  Clock, 
-  DollarSign, 
-  CheckCircle, 
+import {
+  Star,
+  Clock,
+  DollarSign,
+  CheckCircle,
   AlertCircle,
   TrendingUp,
   Gamepad2,
   Banknote,
-  Sparkles
+  Sparkles,
+  Target
 } from 'lucide-react'
+import confetti from 'canvas-confetti'
 
 export default function ChildDashboard(){
   const { childId } = useParams()
   const app = useApp()
   const household = app.household
-  const [activeTab, setActiveTab] = useState<'tasks' | 'bank'>('tasks')
+  const [activeTab, setActiveTab] = useState<'tasks' | 'bank' | 'goals'>('tasks')
   useRealtimeUpdates()
   
   if (!household) return (
@@ -131,16 +133,27 @@ export default function ChildDashboard(){
               <Gamepad2 className="h-5 w-5 inline mr-2" />
               Tasks & Screen Time
             </button>
-            <button 
+            <button
               className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                activeTab === 'bank' 
-                  ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50' 
+                activeTab === 'bank'
+                  ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
               onClick={() => setActiveTab('bank')}
             >
               <Banknote className="h-5 w-5 inline mr-2" />
               Bank
+            </button>
+            <button
+              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'goals'
+                  ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+              onClick={() => setActiveTab('goals')}
+            >
+              <Target className="h-5 w-5 inline mr-2" />
+              Goals
             </button>
           </div>
         </CardContent>
@@ -226,6 +239,10 @@ export default function ChildDashboard(){
 
       {activeTab === 'bank' && (
         <BankTab childId={child.id} balance={balance} />
+      )}
+
+      {activeTab === 'goals' && (
+        <GoalsTab childId={child.id} balance={balance} settings={household.settings} />
       )}
     </div>
   )
@@ -368,3 +385,275 @@ function BankTab({ childId, balance }: { childId: string, balance: number }) {
     </div>
   )
 }
+
+function GoalsTab({ childId, balance, settings }: { childId: string, balance: number, settings: any }) {
+  const app = useApp()
+  const household = app.household!
+  const child = household.children.find(c => c.id === childId)!
+  const [showAddGoal, setShowAddGoal] = useState(false)
+  const [newGoalName, setNewGoalName] = useState('')
+  const [newGoalAmount, setNewGoalAmount] = useState(100)
+  const [celebratedGoals, setCelebratedGoals] = useState<string[]>([])
+
+  // Convert points to dollars
+  const currentDollars = balance / settings.pointsPerDollar
+
+  // Calculate metrics for a goal
+  const calculateMetrics = (goal: any) => {
+    const progress = currentDollars
+    const remaining = goal.targetAmount - progress
+    const percentage = Math.min(100, (progress / goal.targetAmount) * 100)
+
+    // Get average points earned per day (last 7 days)
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
+    const recentEarnings = app.ledger.filter(l =>
+      l.childId === childId &&
+      l.type === 'earn' &&
+      l.ts >= sevenDaysAgo &&
+      l.points > 0
+    )
+    const totalEarned = recentEarnings.reduce((sum, l) => sum + l.points, 0)
+    const avgPointsPerDay = totalEarned / 7
+    const avgDollarsPerDay = avgPointsPerDay / settings.pointsPerDollar
+
+    // Calculate days to goal at current rate
+    const daysAtCurrentRate = avgDollarsPerDay > 0 ? Math.ceil(remaining / avgDollarsPerDay) : Infinity
+
+    // Calculate max possible earnings per day (all tasks completed)
+    const allTasks = [...settings.baselineTasks, ...settings.extraTasks].filter((t: any) => t.childId === childId)
+    const maxPointsPerDay = allTasks.reduce((sum: number, t: any) => sum + t.points, 0)
+    const maxDollarsPerDay = maxPointsPerDay / settings.pointsPerDollar
+    const daysIfAllTasks = maxDollarsPerDay > 0 ? Math.ceil(remaining / maxDollarsPerDay) : Infinity
+
+    // Calculate 50% completion rate
+    const halfDollarsPerDay = maxDollarsPerDay * 0.5
+    const daysIfHalfTasks = halfDollarsPerDay > 0 ? Math.ceil(remaining / halfDollarsPerDay) : Infinity
+
+    return {
+      progress,
+      remaining,
+      percentage,
+      daysAtCurrentRate,
+      daysIfAllTasks,
+      daysIfHalfTasks,
+      isAchieved: progress >= goal.targetAmount
+    }
+  }
+
+  // Trigger confetti for achieved goals
+  useEffect(() => {
+    child.goals.forEach(goal => {
+      const metrics = calculateMetrics(goal)
+      if (metrics.isAchieved && !celebratedGoals.includes(goal.id)) {
+        // Trigger confetti
+        confetti({
+          particleCount: 200,
+          spread: 100,
+          origin: { y: 0.6 },
+          colors: ['#FFD700', '#FFA500', '#FF6347', '#00CED1', '#9370DB']
+        })
+        setCelebratedGoals(prev => [...prev, goal.id])
+      }
+    })
+  }, [child.goals, celebratedGoals])
+
+  const addGoal = () => {
+    if (newGoalName.trim() && newGoalAmount > 0) {
+      app.addGoal(childId, newGoalName, newGoalAmount)
+      setNewGoalName('')
+      setNewGoalAmount(100)
+      setShowAddGoal(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Current Balance */}
+      <DashboardCard
+        title="💰 Your Savings"
+        description="Points converted to dollars"
+        className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200"
+      >
+        <div className="text-center py-6">
+          <div className="text-5xl font-bold text-green-600">
+            ${currentDollars.toFixed(2)}
+          </div>
+          <p className="text-gray-600 mt-2">{balance} points = ${currentDollars.toFixed(2)}</p>
+        </div>
+      </DashboardCard>
+
+      {/* Goals List */}
+      {child.goals.map(goal => {
+        const metrics = calculateMetrics(goal)
+        return (
+          <DashboardCard
+            key={goal.id}
+            title={`🎯 ${goal.name}`}
+            description={`Goal: $${goal.targetAmount}`}
+            className={metrics.isAchieved ? "bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-300" : "bg-white/80 backdrop-blur-sm"}
+          >
+            {metrics.isAchieved && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg border-2 border-yellow-300 text-center">
+                <div className="text-3xl mb-2">🎉 🎊 ✨</div>
+                <div className="text-xl font-bold text-yellow-800">Goal Achieved!</div>
+                <p className="text-yellow-700">You did it! Talk to your parents about getting your ${goal.targetAmount} reward!</p>
+              </div>
+            )}
+
+            {/* Progress Bar */}
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="font-semibold text-gray-700">Progress</span>
+                  <span className="font-bold text-purple-600">{metrics.percentage.toFixed(1)}%</span>
+                </div>
+                <div className="h-6 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 transition-all duration-500 flex items-center justify-end pr-2"
+                    style={{ width: `${metrics.percentage}%` }}
+                  >
+                    {metrics.percentage > 10 && (
+                      <span className="text-white text-xs font-bold">${metrics.progress.toFixed(2)}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>$0</span>
+                  <span>${goal.targetAmount}</span>
+                </div>
+              </div>
+
+              {/* Metrics */}
+              {!metrics.isAchieved && metrics.remaining > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-blue-600 font-semibold mb-1">At Current Rate</div>
+                      <div className="text-lg font-bold text-blue-700">
+                        {metrics.daysAtCurrentRate === Infinity ? '∞' : metrics.daysAtCurrentRate} days
+                      </div>
+                      <div className="text-xs text-blue-500">Based on last 7 days</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-green-50 border-green-200">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-green-600 font-semibold mb-1">If All Tasks Done</div>
+                      <div className="text-lg font-bold text-green-700">
+                        {metrics.daysIfAllTasks === Infinity ? '∞' : metrics.daysIfAllTasks} days
+                      </div>
+                      <div className="text-xs text-green-500">100% completion daily</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-orange-50 border-orange-200">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-orange-600 font-semibold mb-1">If 50% Tasks Done</div>
+                      <div className="text-lg font-bold text-orange-700">
+                        {metrics.daysIfHalfTasks === Infinity ? '∞' : metrics.daysIfHalfTasks} days
+                      </div>
+                      <div className="text-xs text-orange-500">50% completion daily</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Remaining Amount */}
+              {!metrics.isAchieved && (
+                <div className="text-center p-3 bg-purple-50 rounded-lg">
+                  <span className="text-sm text-gray-700">You need </span>
+                  <span className="text-xl font-bold text-purple-600">${metrics.remaining.toFixed(2)}</span>
+                  <span className="text-sm text-gray-700"> more to reach your goal!</span>
+                </div>
+              )}
+
+              {/* Delete Goal Button */}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => app.deleteGoal(childId, goal.id)}
+                className="w-full"
+              >
+                Remove Goal
+              </Button>
+            </div>
+          </DashboardCard>
+        )
+      })}
+
+      {/* Add Goal Section */}
+      {!showAddGoal && (
+        <Button
+          onClick={() => setShowAddGoal(true)}
+          className="w-full bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600"
+          size="lg"
+        >
+          <Target className="h-5 w-5 mr-2" />
+          Add New Goal
+        </Button>
+      )}
+
+      {showAddGoal && (
+        <DashboardCard
+          title="✨ Create New Goal"
+          description="What are you saving for?"
+          className="bg-gradient-to-br from-purple-50 to-cyan-50 border-purple-200"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Goal Name</label>
+              <input
+                type="text"
+                value={newGoalName}
+                onChange={(e) => setNewGoalName(e.target.value)}
+                placeholder="e.g., 3D Printer, Video Game, Bike"
+                className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Target Amount ($)</label>
+              <input
+                type="number"
+                value={newGoalAmount}
+                onChange={(e) => setNewGoalAmount(parseInt(e.target.value) || 0)}
+                min="1"
+                className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={addGoal}
+                className="flex-1 bg-gradient-to-r from-purple-500 to-cyan-500"
+                disabled={!newGoalName.trim() || newGoalAmount <= 0}
+              >
+                Create Goal
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowAddGoal(false)
+                  setNewGoalName('')
+                  setNewGoalAmount(100)
+                }}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DashboardCard>
+      )}
+
+      {child.goals.length === 0 && !showAddGoal && (
+        <DashboardCard
+          title="🎯 No Goals Yet"
+          description="Start saving for something special!"
+          className="bg-white/80 backdrop-blur-sm text-center"
+        >
+          <p className="text-gray-600 py-4">
+            Set a savings goal and track your progress. You can save up for toys, games, or anything else you want!
+          </p>
+        </DashboardCard>
+      )}
+    </div>
+  )
+}
+

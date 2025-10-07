@@ -1,16 +1,19 @@
 import * as React from "react"
 import { useState, useRef, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { cn } from "../../lib/utils"
 import { Button } from "./button"
-import { 
-  Plus, 
-  X, 
-  UserPlus, 
-  DollarSign, 
-  Clock, 
+import {
+  Plus,
+  X,
+  UserPlus,
+  DollarSign,
+  Clock,
   CheckSquare,
   Settings,
-  Zap
+  Zap,
+  TrendingUp,
+  AlertCircle
 } from "lucide-react"
 import { useApp } from "../../state/store"
 
@@ -30,8 +33,10 @@ interface QuickActionsProps {
 export function QuickActions({ className }: QuickActionsProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const app = useApp()
-  
+  const navigate = useNavigate()
+
   const quickActions: QuickAction[] = [
     {
       id: "add-points",
@@ -39,19 +44,58 @@ export function QuickActions({ className }: QuickActionsProps) {
       description: "Quickly add points to a child",
       icon: <Plus className="h-4 w-4" />,
       action: () => {
-        // This would open a modal in a real implementation
-        alert("Add points functionality - would open modal")
+        if (!app.household?.children?.length) {
+          alert("No family setup found! Please set up your family first by going to Settings.")
+          return
+        }
+        
+        const childName = prompt("Which child? (Enter name)")
+        if (!childName) return
+        const points = prompt("How many points to add?")
+        if (!points || isNaN(Number(points))) return
+        
+        const child = app.household?.children.find(c => 
+          c.name.toLowerCase() === childName.toLowerCase()
+        )
+        if (!child) {
+          alert("Child not found!")
+          return
+        }
+        
+        app.addEarn(child.id, 'QUICK_BONUS', `Quick bonus from parent`, Number(points))
+        alert(`Added ${points} points to ${child.name}!`)
       },
       variant: "success"
     },
     {
       id: "screen-time",
       label: "Screen Time",
-      description: "Manage screen time sessions",
+      description: "Start screen time for a child",
       icon: <Clock className="h-4 w-4" />,
       action: () => {
-        // This would open screen time management
-        alert("Screen time management - would open modal")
+        if (!app.household?.children?.length) {
+          alert("No family setup found! Please set up your family first by going to Settings.")
+          return
+        }
+        
+        const childName = prompt("Which child? (Enter name)")
+        if (!childName) return
+        const minutes = prompt("How many minutes?")
+        if (!minutes || isNaN(Number(minutes))) return
+        
+        const child = app.household?.children.find(c => 
+          c.name.toLowerCase() === childName.toLowerCase()
+        )
+        if (!child) {
+          alert("Child not found!")
+          return
+        }
+        
+        const cost = Number(minutes) * (app.household?.settings.pointPerMinute || 1)
+        if (confirm(`Start ${minutes} minutes of screen time for ${child.name}? Cost: ${cost} points`)) {
+          app.startScreenTime(child.id, Number(minutes))
+          alert(`Started ${minutes} minutes of screen time for ${child.name}!`)
+        }
       },
       variant: "default"
     },
@@ -61,8 +105,8 @@ export function QuickActions({ className }: QuickActionsProps) {
       description: "Process cash-out requests",
       icon: <DollarSign className="h-4 w-4" />,
       action: () => {
-        // Navigate to bank page
-        window.location.href = "/bank"
+        console.log("Cash Out clicked, navigating to /bank")
+        navigate("/bank")
       },
       variant: "warning"
     },
@@ -72,8 +116,13 @@ export function QuickActions({ className }: QuickActionsProps) {
       description: "Review pending task completions",
       icon: <CheckSquare className="h-4 w-4" />,
       action: () => {
-        // This would show pending tasks
-        alert("Task verification - would show pending tasks")
+        // Scroll to pending requests section
+        const pendingSection = document.querySelector('[data-section="pending-requests"]')
+        if (pendingSection) {
+          pendingSection.scrollIntoView({ behavior: 'smooth' })
+        } else {
+          alert("No pending tasks found!")
+        }
       },
       variant: "default"
     },
@@ -83,7 +132,8 @@ export function QuickActions({ className }: QuickActionsProps) {
       description: "Open settings page",
       icon: <Settings className="h-4 w-4" />,
       action: () => {
-        window.location.href = "/settings"
+        console.log("Settings clicked, navigating to /settings")
+        navigate("/settings")
       },
       variant: "default"
     }
@@ -91,15 +141,20 @@ export function QuickActions({ className }: QuickActionsProps) {
   
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node) &&
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false)
       }
     }
-    
+
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
@@ -119,47 +174,51 @@ export function QuickActions({ className }: QuickActionsProps) {
       </Button>
       
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-          <div className="p-3 border-b border-gray-200">
+        <div ref={menuRef} className="absolute right-0 top-full mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+          <div className="p-4 border-b border-gray-200">
             <h3 className="text-sm font-semibold text-gray-900">Quick Actions</h3>
             <p className="text-xs text-gray-500">Common tasks and shortcuts</p>
           </div>
           
-          <div className="p-2">
-            {quickActions.map((action) => (
-              <button
-                key={action.id}
-                onClick={() => {
-                  action.action()
-                  setIsOpen(false)
-                }}
-                className={cn(
-                  "w-full flex items-center space-x-3 p-3 text-left hover:bg-gray-50 rounded-lg transition-colors",
-                  "focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-                )}
-              >
-                <div className={cn(
-                  "p-2 rounded-lg",
-                  action.variant === "success" && "bg-green-100 text-green-600",
-                  action.variant === "warning" && "bg-yellow-100 text-yellow-600",
-                  action.variant === "destructive" && "bg-red-100 text-red-600",
-                  action.variant === "default" && "bg-gray-100 text-gray-600"
-                )}>
-                  {action.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900">
-                    {action.label}
+          <div className="p-3">
+            <div className="grid grid-cols-1 gap-1">
+              {quickActions.map((action) => (
+                <button
+                  key={action.id}
+                  onClick={() => {
+                    console.log("Quick action clicked:", action.id)
+                    action.action()
+                    setIsOpen(false)
+                  }}
+                  className={cn(
+                    "w-full flex items-center space-x-3 p-3 text-left hover:bg-gray-50 rounded-lg transition-colors",
+                    "focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                  )}
+                >
+                  <div className={cn(
+                    "p-2 rounded-lg flex-shrink-0",
+                    action.variant === "success" && "bg-green-100 text-green-600",
+                    action.variant === "warning" && "bg-yellow-100 text-yellow-600",
+                    action.variant === "destructive" && "bg-red-100 text-red-600",
+                    action.variant === "default" && "bg-gray-100 text-gray-600"
+                  )}>
+                    {action.icon}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {action.description}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">
+                      {action.label}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {action.description}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
     </div>
   )
 }
+

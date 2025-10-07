@@ -37,7 +37,7 @@ export default function ChildTaskRequest({ child, date }: ChildTaskRequestProps)
     app.addEarn(child.id, `REQUEST_${task.code}`, `Request: ${task.label}`, 0)
     setSelectedTask('')
     setRequestMessage('')
-    alert('Task completion request sent to parent!')
+    // Request sent - dialog will close automatically
   }
 
   const requestScreenTime = (minutes: number) => {
@@ -50,8 +50,8 @@ export default function ChildTaskRequest({ child, date }: ChildTaskRequestProps)
     }
 
     if (confirm(`Request ${minutes} minutes of screen time for ${cost} points?`)) {
-      app.addSpend(child.id, 'SCREEN_REQUEST', `Screen time request: ${minutes}m`, cost)
-      alert('Screen time request sent to parent!')
+      app.addEarn(child.id, 'SCREEN_REQUEST', `Screen time request: ${minutes}m`, 0)
+      // Request sent - no need for alert
     }
   }
 
@@ -110,8 +110,22 @@ export default function ChildTaskRequest({ child, date }: ChildTaskRequestProps)
             <div className="section-subtitle">Ask parent for screen time based on your points</div>
           </div>
         </div>
-        
+
         <div className="vstack">
+          {/* Show pending screen time requests */}
+          {app.ledger.filter(l =>
+            l.childId === child.id &&
+            l.date === ymd &&
+            l.code === 'SCREEN_REQUEST'
+          ).map(request => (
+            <div key={request.id} className="task-pending" style={{marginBottom: '1rem'}}>
+              <div className="task-content">
+                <span className="task-label">⏳ {request.label}</span>
+              </div>
+              <div className="task-status">Pending Parent Approval</div>
+            </div>
+          ))}
+
           <div className="help-text">
             You have {app.ledger.filter(l => l.childId === child.id).reduce((a, b) => a + b.points, 0)} points available.
             Each minute costs {s.pointPerMinute} point{s.pointPerMinute !== 1 ? 's' : ''}.

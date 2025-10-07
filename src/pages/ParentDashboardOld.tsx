@@ -100,7 +100,10 @@ export default function ParentDashboard(){
                     <button className="px-3 py-1 bg-success-500 text-white rounded-lg hover:bg-success-600 transition-colors" onClick={() => {
                       // Convert request to actual task completion
                       const taskCode = e.code.replace('REQUEST_', '')
-                      app.addEarn(child.id, taskCode, e.label.replace('Request: ', ''), 10) // Default points
+                      // Find the task in settings to get the correct points
+                      const task = [...settings.baselineTasks, ...settings.extraTasks].find(t => t.code === taskCode)
+                      const points = task?.points || 10
+                      app.addEarn(child.id, taskCode, e.label.replace('Request: ', ''), points, true)
                       app.removeLedger(e.id)
                     }}>
                       ✓ Approve

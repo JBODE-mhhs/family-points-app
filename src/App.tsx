@@ -10,10 +10,16 @@ import { ThemeProvider } from './components/theme-provider'
 import { ErrorBoundary } from './components/error-boundary'
 import { PerformanceMonitor } from './components/performance-monitor'
 import { useApp } from './state/store'
+import { useAutoReset } from './hooks/useAutoReset'
+import { GlobalDialog } from './components/GlobalDialog'
 
 export default function App(){
+  console.log('App component rendering...')
+  useAutoReset() // Enable automatic daily reset
+
   try {
     const h = useApp(s => s.household)
+    console.log('Household data:', h)
     
     // Setup page doesn't need the app shell
     if (!h) {
@@ -43,6 +49,7 @@ export default function App(){
             </Routes>
           </AppShell>
           <PerformanceMonitor />
+          <GlobalDialog />
         </ThemeProvider>
       </ErrorBoundary>
     )
