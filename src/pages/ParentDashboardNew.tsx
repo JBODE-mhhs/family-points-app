@@ -1,13 +1,12 @@
 import { Link } from 'react-router-dom'
 import { useApp } from '../state/store'
 import { todayYMD, formatTime } from '../utils/date'
-import { calcBalancePoints, getCutoffMinutes, getDailyCapMinutes, spentScreenMinutesFromSessions, spentScreenMinutesFromLedger } from '../utils/logic'
+import { calcBalancePoints, getCutoffMinutes, getDailyCapMinutes, spentScreenMinutesFromSessions, spentScreenMinutesFromLedger, teamBonusGiven, baselineDone } from '../utils/logic'
 import TaskButtons from '../components/TaskButtons'
 import Timer from '../components/Timer'
 import { useRealtimeUpdates } from '../hooks/useRealtimeUpdates'
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { useDialogStore } from '../hooks/useDialog'
 import { DashboardCard } from '../components/ui/dashboard-card'
 import { StatCard } from '../components/ui/stat-card'
 import { ActionButton } from '../components/ui/action-button'
@@ -22,7 +21,8 @@ import {
   AlertCircle,
   TrendingUp,
   Activity,
-  Settings
+  Settings,
+  Target
 } from 'lucide-react'
 
 export default function ParentDashboard(){
@@ -30,7 +30,6 @@ export default function ParentDashboard(){
   const household = app.household
   const ledger = app.ledger
   const ymd = todayYMD()
-  const dialog = useDialogStore()
   useRealtimeUpdates()
   
   // Filter state
@@ -85,6 +84,13 @@ export default function ParentDashboard(){
     })
   }
 
+  const giveTeamBonus = () => {
+    if (teamBonusGiven(ledger, ymd)) return
+    const allBaselinesDoneFor = (childId: string) => settings.baselineTasks.filter(t => t.childId === childId).every(t => baselineDone(ledger, childId, ymd, t.code))
+    const both = household.children.every(c => allBaselinesDoneFor(c.id))
+    if (!both) { alert('Both children need all baselines done to give team bonus.'); return }
+    household.children.forEach(c => app.addEarn(c.id, 'TEAM_BONUS', 'Team bonus (both finished baselines)', settings.teamBonusPoints))
+  }
 
   // Calculate dashboard metrics
   const totalPoints = useMemo(() => {
@@ -119,8 +125,14 @@ export default function ParentDashboard(){
         </div>
         <div className="flex items-center space-x-3">
           <Badge variant="secondary" className="text-sm">
-            {household.children.length} children
+            {household.children.length} {household.children.length === 1 ? 'child' : 'children'}
           </Badge>
+          <Link to="/settings">
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -153,7 +165,7 @@ export default function ParentDashboard(){
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pending Requests */}
         <DashboardCard
           title="Pending Requests"
@@ -163,7 +175,6 @@ export default function ParentDashboard(){
               {pendingRequests} pending
             </Badge>
           }
-          data-section="pending-requests"
         >
           <div className="space-y-4">
             {ledger.filter(l => l.date === ymd && l.type === 'earn' && l.code.startsWith('REQUEST_')).map(e => {
@@ -185,23 +196,8 @@ export default function ParentDashboard(){
                             // Find the task in settings to get the correct points
                             const task = [...settings.baselineTasks, ...settings.extraTasks].find(t => t.code === taskCode)
                             const points = task?.points || 10
-
-                            // Atomic operation: add earn entry AND remove request in single state update
-                            const newEntry = {
-                              id: crypto.randomUUID(),
-                              childId: child.id,
-                              date: ymd,
-                              type: 'earn' as const,
-                              code: taskCode,
-                              label: e.label.replace('Request: ', ''),
-                              points: points,
-                              verified: true,
-                              timestamp: new Date().toISOString()
-                            }
-
-                            useApp.setState((state) => ({
-                              ledger: [...state.ledger.filter(l => l.id !== e.id), newEntry]
-                            }))
+                            app.addEarn(child.id, taskCode, e.label.replace('Request: ', ''), points, true)
+                            app.removeLedger(e.id)
                           }}
                         >
                           ✓ Approve
@@ -237,10 +233,9 @@ export default function ParentDashboard(){
                           variant="approve"
                           size="sm"
                           onClick={() => {
-                            console.log('🟢 Approving screen time:', { childId: child.id, minutes, cost, label: e.label })
-                            // Use atomic action to prevent race conditions
-                            app.approveScreenTime(e.id, child.id, minutes, cost, e.label)
-                            console.log('✅ Screen time approved atomically')
+                            app.addSpend(child.id, 'SCREEN_APPROVED', `Approved: ${e.label}`, cost)
+                            app.startScreenTime(child.id, minutes)
+                            app.removeLedger(e.id)
                           }}
                         >
                           ✓ Approve
@@ -276,7 +271,7 @@ export default function ParentDashboard(){
                           onClick={() => {
                             app.pauseScreenTime(child.id)
                             app.removeLedger(e.id)
-                            // Screen time paused - no alert needed
+                            alert('Screen time paused for ' + child.name)
                           }}
                         >
                           ✓ Pause
@@ -330,14 +325,10 @@ export default function ParentDashboard(){
                         <ActionButton
                           variant="approve"
                           size="sm"
-                          onClick={async () => {
-                            const confirmed = await dialog.showConfirm(
-                              `Approve $${request.amount} cash-out for ${request.childName}?\n\nThis will deduct ${request.points} points.`,
-                              'Approve Cash-Out',
-                              'success'
-                            )
-                            if (confirmed) {
+                          onClick={() => {
+                            if (confirm(`Approve $${request.amount} cash-out for ${request.childName}? This will deduct ${request.points} points.`)) {
                               app.approveCashOut(request.id, true)
+                              alert(`Approved $${request.amount} cash-out for ${request.childName}`)
                             }
                           }}
                         >
@@ -346,14 +337,10 @@ export default function ParentDashboard(){
                         <ActionButton
                           variant="deny"
                           size="sm"
-                          onClick={async () => {
-                            const confirmed = await dialog.showConfirm(
-                              `Reject $${request.amount} cash-out request from ${request.childName}?`,
-                              'Reject Cash-Out',
-                              'danger'
-                            )
-                            if (confirmed) {
+                          onClick={() => {
+                            if (confirm(`Reject $${request.amount} cash-out request from ${request.childName}?`)) {
                               app.approveCashOut(request.id, false)
+                              alert(`Rejected cash-out request from ${request.childName}`)
                             }
                           }}
                         >
@@ -433,13 +420,8 @@ export default function ParentDashboard(){
                         <ActionButton
                           variant="deny"
                           size="sm"
-                          onClick={async () => {
-                            const confirmed = await dialog.showConfirm(
-                              `End screen time for ${child.name}?`,
-                              'End Screen Time',
-                              'warning'
-                            )
-                            if (confirmed) {
+                          onClick={() => {
+                            if (confirm(`End screen time for ${child.name}? Remaining time will be refunded as points.`)) {
                               app.endScreenTime(child.id, true)
                             }
                           }}
@@ -463,7 +445,7 @@ export default function ParentDashboard(){
       </div>
 
       {/* Children Overview */}
-      <div id="children-section" className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div id="children-section" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {household.children.map(child => {
           const balance = calcBalancePoints(ledger, child.id)
           const spentFromSessions = spentScreenMinutesFromSessions(app.screenTimeSessions, child.id, ymd)
@@ -481,11 +463,11 @@ export default function ParentDashboard(){
               padding="none"
             >
               {/* Animated Child Name Header */}
-              <div className="relative overflow-hidden rounded-t-2xl">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 via-primary-600/5 to-secondary-600/5" />
-                <div className="relative px-6 py-8 text-center border-b border-neutral-100">
+              <div className="relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-500 via-primary-600 to-secondary-600 opacity-10" />
+                <div className="relative px-6 py-8 text-center">
                   <motion.h2
-                    className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent mb-2 tracking-tight"
+                    className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent mb-2"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, ease: [0.4, 0.0, 0.2, 1] }}
@@ -493,7 +475,7 @@ export default function ParentDashboard(){
                     {child.name}
                   </motion.h2>
                   <motion.p
-                    className="text-sm text-neutral-500 font-medium tracking-wide"
+                    className="text-sm text-neutral-500 font-medium"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.5, delay: 0.1 }}
@@ -520,144 +502,126 @@ export default function ParentDashboard(){
                   </div>
                 </div>
 
-                {/* Tasks - Compact & Elegant */}
-                <div>
-                  <h4 className="text-sm font-semibold text-neutral-700 mb-3 uppercase tracking-wide">Daily Tasks</h4>
-                  <div className="space-y-2">
-                    {(() => {
-                      const baselineTasks = settings.baselineTasks.filter(t => t.childId === child.id)
-                      const extraTasks = settings.extraTasks.filter(t => t.childId === child.id && (!t.ageMin || child.age >= t.ageMin))
-                      const allTasks = [...baselineTasks, ...extraTasks]
-
-                      return allTasks.map(task => {
-                        const entry = ledger.find(l =>
-                          l.childId === child.id &&
-                          l.date === ymd &&
-                          l.code === task.code &&
-                          l.type === 'earn'
-                        )
-
-                        const isVerified = entry?.verified === true
-                        const isPending = entry?.verified === undefined && entry
-                        const isIncomplete = entry?.verified === false
-                        const isDone = isVerified || isPending || isIncomplete
-
+                {/* Goals Progress */}
+                {child.goals && child.goals.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <Target className="h-4 w-4 text-primary-500" />
+                      Goals Progress
+                    </h4>
+                    <div className="space-y-3">
+                      {(child.goals || []).map(goal => {
+                        const currentDollars = balance / settings.pointsPerDollar
+                        const progress = Math.min(100, (currentDollars / goal.targetAmount) * 100)
                         return (
-                          <motion.div
-                            key={task.id}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className={`flex items-center justify-between px-4 py-2.5 rounded-lg border-2 transition-all ${
-                              isVerified
-                                ? 'bg-success-50 border-success-200'
-                                : isPending
-                                ? 'bg-warning-50 border-warning-200'
-                                : isIncomplete
-                                ? 'bg-error-50 border-error-200'
-                                : 'bg-neutral-50 border-neutral-200 hover:border-primary-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                isVerified
-                                  ? 'bg-success-500 text-white'
-                                  : isPending
-                                  ? 'bg-warning-500 text-white'
-                                  : isIncomplete
-                                  ? 'bg-error-500 text-white'
-                                  : 'bg-neutral-300 text-neutral-600'
-                              }`}>
-                                {isVerified ? '✓' : isPending ? '⏳' : isIncomplete ? '✗' : '○'}
+                          <div key={goal.id} className="p-3 bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-200 rounded-lg">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex-1">
+                                <div className="text-sm font-bold text-primary-600">{goal.name}</div>
+                                <div className="text-xs text-neutral-600">
+                                  ${currentDollars.toFixed(2)} / ${goal.targetAmount}
+                                </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-neutral-900 truncate">{task.label}</p>
-                                <p className={`text-xs ${
-                                  isVerified ? 'text-success-600' : isPending ? 'text-warning-600' : isIncomplete ? 'text-error-600' : 'text-neutral-500'
-                                }`}>
-                                  {isVerified ? 'Completed' : isPending ? 'Pending' : isIncomplete ? 'Incomplete' : task.category === 'mandatory' ? 'Mandatory' : 'Optional'}
-                                </p>
-                              </div>
+                              <div className="text-xs font-bold text-primary-600">{progress.toFixed(0)}%</div>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <Badge
-                                variant={isVerified ? 'success' : isPending ? 'warning' : isIncomplete ? 'destructive' : 'secondary'}
-                                size="sm"
-                              >
-                                +{task.points}
-                              </Badge>
+                            <div className="h-2 bg-neutral-200 rounded-full overflow-hidden">
+                              <motion.div
+                                className="h-full bg-gradient-to-r from-primary-500 to-secondary-500"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progress}%` }}
+                                transition={{ duration: 0.5, ease: [0.4, 0.0, 0.2, 1] }}
+                              />
                             </div>
-                          </motion.div>
+                          </div>
                         )
-                      })
-                    })()}
+                      })}
+                    </div>
                   </div>
+                )}
+
+                {/* Tasks */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Daily Tasks</h4>
+                  <TaskButtons child={child} date={new Date()}/>
                 </div>
 
-                {/* Quick Actions - Compact & Elegant */}
+                {/* Quick Actions */}
                 <div>
-                  <h4 className="text-sm font-semibold text-neutral-700 mb-3 uppercase tracking-wide">Quick Actions</h4>
+                  <h4 className="font-semibold text-gray-900 mb-3">Quick Actions</h4>
                   <div className="grid grid-cols-2 gap-2">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                    <ActionButton
+                      variant="warning"
+                      size="sm"
                       onClick={() => app.addDeduction(child.id, 'DED_REMINDER', 'Second reminder', 5)}
-                      className="flex flex-col items-center justify-center px-3 py-3 rounded-lg bg-gradient-to-br from-warning-50 to-warning-100 border-2 border-warning-200 hover:border-warning-300 transition-all"
                     >
-                      <span className="text-lg font-bold text-warning-700">–5</span>
-                      <span className="text-xs font-medium text-warning-600">Reminder</span>
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      –5 Reminder
+                    </ActionButton>
+                    <ActionButton
+                      variant="warning"
+                      size="sm"
                       onClick={() => app.addDeduction(child.id, 'DED_RUDE', 'Rude language', 10)}
-                      className="flex flex-col items-center justify-center px-3 py-3 rounded-lg bg-gradient-to-br from-warning-50 to-warning-100 border-2 border-warning-200 hover:border-warning-300 transition-all"
                     >
-                      <span className="text-lg font-bold text-warning-700">–10</span>
-                      <span className="text-xs font-medium text-warning-600">Rude</span>
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      –10 Rude
+                    </ActionButton>
+                    <ActionButton
+                      variant="deny"
+                      size="sm"
                       onClick={() => app.addLockout(child.id, 'LYING_SNEAK', 30)}
-                      className="flex flex-col items-center justify-center px-3 py-3 rounded-lg bg-gradient-to-br from-error-50 to-error-100 border-2 border-error-200 hover:border-error-300 transition-all"
                     >
-                      <span className="text-lg font-bold text-error-700">–30</span>
-                      <span className="text-xs font-medium text-error-600">Lockout</span>
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      Lockout (–30)
+                    </ActionButton>
+                    <ActionButton
+                      variant="approve"
+                      size="sm"
                       onClick={() => app.addReset(child.id)}
-                      className="flex flex-col items-center justify-center px-3 py-3 rounded-lg bg-gradient-to-br from-success-50 to-success-100 border-2 border-success-200 hover:border-success-300 transition-all"
                     >
-                      <span className="text-lg font-bold text-success-700">✓</span>
-                      <span className="text-xs font-medium text-success-600">Reset</span>
-                    </motion.button>
+                      Reset Complete
+                    </ActionButton>
                   </div>
                 </div>
 
-                {/* Screen Time Timer - Compact & Elegant */}
+                {/* Screen Time Timer */}
                 <div>
-                  <h4 className="text-sm font-semibold text-neutral-700 mb-3 uppercase tracking-wide">Screen Time</h4>
-                  <div className="rounded-xl bg-gradient-to-br from-primary-50 to-secondary-50 border-2 border-primary-200 p-4">
-                    <Timer child={child} onSpend={() => {
-                      app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)
-                    }}/>
-                  </div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Screen Time</h4>
+                  <Timer child={child} onSpend={() => {
+                    app.addSpend(child.id, 'SCREEN_BLOCK', '30-min internet block', settings.blockMinutes * settings.pointPerMinute)
+                  }}/>
                 </div>
 
-                {/* Cash Preview - Gradient Style */}
+                {/* Cash Preview */}
                 <div>
-                  <h4 className="text-sm font-semibold text-neutral-700 mb-3 uppercase tracking-wide">Cash-Out Preview</h4>
-                  <div className="rounded-xl bg-gradient-to-br from-success-50 via-primary-50 to-secondary-50 border-2 border-success-200 p-5">
-                    <CashPreview childId={child.id} />
-                  </div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Cash-out Preview</h4>
+                  <CashPreview childId={child.id} />
                 </div>
               </div>
             </DashboardCard>
           )
         })}
       </div>
+
+      {/* Team Bonus */}
+      <DashboardCard
+        title="Team Bonus"
+        description="Reward both children when all baselines are complete"
+        headerAction={
+          <Button 
+            variant="default" 
+            disabled={teamBonusGiven(ledger, ymd)} 
+            onClick={giveTeamBonus}
+          >
+            Give +{settings.teamBonusPoints} to both
+          </Button>
+        }
+      >
+        <div className="text-center py-4">
+          <p className="text-gray-600">
+            {teamBonusGiven(ledger, ymd) 
+              ? "Team bonus already given today!" 
+              : "Both children need to complete all baseline tasks to unlock team bonus."
+            }
+          </p>
+        </div>
+      </DashboardCard>
 
       {/* Activity Log */}
       <DashboardCard
@@ -835,35 +799,31 @@ function CashPreview({ childId }:{ childId: string }){
   const maxByPoints = Math.floor(Math.max(0, balance) / s.pointsPerDollar)
   const cap = child.weeklyCashCap
   const preview = Math.min(maxByPoints, cap)
-
+  
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <motion.div
-          className="text-center p-3 rounded-lg bg-white/60 border border-primary-200"
-          whileHover={{ scale: 1.02 }}
-        >
-          <div className="text-xs font-medium text-neutral-600 mb-1 uppercase tracking-wide">Balance</div>
-          <div className="text-3xl font-bold text-primary-600 tracking-tight">{balance}</div>
-          <div className="text-xs text-neutral-500 mt-1">points</div>
-        </motion.div>
-        <motion.div
-          className="text-center p-3 rounded-lg bg-white/60 border border-success-200"
-          whileHover={{ scale: 1.02 }}
-        >
-          <div className="text-xs font-medium text-neutral-600 mb-1 uppercase tracking-wide">Available</div>
-          <div className="text-3xl font-bold text-success-600 tracking-tight">${preview}</div>
-          <div className="text-xs text-neutral-500 mt-1">this week</div>
-        </motion.div>
-      </div>
-      <div className="flex items-center justify-between px-2 py-2 rounded-lg bg-white/40 border border-neutral-200">
-        <span className="text-xs text-neutral-600">
-          Rate: <Badge variant="secondary" size="sm">50 pts = $1</Badge>
-        </span>
-        <span className="text-xs text-neutral-600">
-          Cap: <span className="font-bold text-neutral-900">${cap}/wk</span>
-        </span>
-      </div>
-    </div>
+    <Card className="bg-gradient-to-r from-success-50 to-primary-50 border-success-200">
+      <CardContent className="p-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="text-center">
+            <div className="text-sm text-gray-600">Current Balance</div>
+            <div className="text-2xl font-bold text-primary-600">{balance}</div>
+            <div className="text-xs text-gray-500">points</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-gray-600">Available Cash</div>
+            <div className="text-2xl font-bold text-success-600">${preview}</div>
+            <div className="text-xs text-gray-500">this week</div>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between text-xs text-gray-500">
+          <span>Rate: <Badge variant="secondary">50 pts = $1</Badge></span>
+          <span>Weekly cap: <strong>${cap}</strong></span>
+        </div>
+        <div className="text-xs text-gray-500 mt-2">
+          Use the Bank Day screen on Sundays to confirm cash-outs.
+        </div>
+      </CardContent>
+    </Card>
   )
 }
+

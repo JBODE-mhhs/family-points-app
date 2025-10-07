@@ -106,7 +106,7 @@ export default function ScreenTimeTimer({ childId, minutes, onComplete }: Screen
     // Send pause request to parent
     const app = useApp.getState()
     app.addEarn(childId, 'PAUSE_REQUEST', 'Screen time pause request', 0)
-    alert('Pause request sent to parent!')
+    // Pause request sent - no alert needed
   }
 
 

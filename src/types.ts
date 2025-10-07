@@ -1,6 +1,7 @@
 export type Id = string
 
-export type TaskCategory = 'baseline' | 'extra'
+export type TaskCategory = 'mandatory' | 'optional'
+export type TaskDifficulty = 'low' | 'medium' | 'high'
 
 export interface TaskDef {
   id: Id
@@ -8,6 +9,8 @@ export interface TaskDef {
   label: string
   points: number
   category: TaskCategory
+  difficulty?: TaskDifficulty // low/medium/high for auto-balancing
+  childId?: string // which child this task belongs to (undefined = all children)
   ageMin?: number
 }
 
@@ -22,6 +25,13 @@ export interface Bedtimes {
   weekend: string // applies to Sat & Sun
 }
 
+export interface Goal {
+  id: Id
+  name: string // e.g., "3D Printer"
+  targetAmount: number // dollars (e.g., 500)
+  createdDate: string // YYYY-MM-DD
+}
+
 export interface Child {
   id: Id
   name: string
@@ -30,6 +40,7 @@ export interface Child {
   level: number // 1..4
   starsThisWeek: number
   weeklyCashCap: number // dollars
+  goals: Goal[] // savings goals
 }
 
 export interface Settings {
@@ -39,12 +50,14 @@ export interface Settings {
   schooldayCapMinutes: number // 120
   weekendCapMinutes: number // 300
   noScreenBufferMinutes: number // 30
-  teamBonusPoints: number // 10
   extrasCapSchool: number // +25/day
   extrasCapWeekend: number // +40/day
   bankDay: number // 0=Sun, 1=Mon, ...
   timezone: string // 'America/New_York'
   autoBalanceEnabled: boolean // false
+  autoResetEnabled: boolean // false
+  autoResetTime: string // '00:00' for midnight
+  lastAutoResetDate?: string // YYYY-MM-DD - track when last auto-reset ran
   baselineTasks: TaskDef[]
   extraTasks: TaskDef[]
   deductions: DeductionDef[]

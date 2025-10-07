@@ -16,14 +16,27 @@ export default function ChildTaskDisplay({ child, date }: ChildTaskDisplayProps)
   const [taskNote, setTaskNote] = useState('')
   const [taskPhoto, setTaskPhoto] = useState<string | null>(null)
 
-  const base = s.baselineTasks
-  const extra = s.extraTasks.filter(t => !t.ageMin || child.age >= t.ageMin)
+  // Deduplicate tasks by ID to prevent duplicates
+  const deduplicateById = <T extends { id: string }>(arr: T[]): T[] =>
+    Array.from(new Map(arr.map(item => [item.id, item])).values())
+
+  const base = deduplicateById(s.baselineTasks.filter(t => t.childId === child.id))
+  const extra = deduplicateById(s.extraTasks.filter(t => t.childId === child.id && (!t.ageMin || child.age >= t.ageMin)))
 
   const getTaskStatus = (code: string) => {
-    const entry = app.ledger.find(l => 
-      l.childId === child.id && 
-      l.date === ymd && 
-      l.code === code && 
+    // Check if there's a pending request
+    const pendingRequest = app.ledger.find(l =>
+      l.childId === child.id &&
+      l.date === ymd &&
+      l.code === `REQUEST_${code}` &&
+      l.type === 'earn'
+    )
+    if (pendingRequest) return 'pending-approval'
+
+    const entry = app.ledger.find(l =>
+      l.childId === child.id &&
+      l.date === ymd &&
+      l.code === code &&
       l.type === 'earn'
     )
     if (!entry) return 'not-done'
@@ -40,7 +53,7 @@ export default function ChildTaskDisplay({ child, date }: ChildTaskDisplayProps)
     setSelectedTask('')
     setTaskNote('')
     setTaskPhoto(null)
-    alert('Task completion request sent to parent!')
+    // Request sent - dialog will close automatically
   }
 
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,6 +101,18 @@ export default function ChildTaskDisplay({ child, date }: ChildTaskDisplayProps)
             <span className="task-points">+{t.points} points</span>
           </div>
           <div className="task-status">Verified by parent</div>
+        </div>
+      )
+    }
+
+    if (status === 'pending-approval') {
+      return (
+        <div key={t.id} className="task-pending">
+          <div className="task-content">
+            <span className="task-label">⏳ {t.label}</span>
+            <span className="task-points">+{t.points} points</span>
+          </div>
+          <div className="task-status">Pending Approval</div>
         </div>
       )
     }

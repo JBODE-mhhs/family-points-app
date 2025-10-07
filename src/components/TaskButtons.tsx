@@ -9,8 +9,12 @@ export default function TaskButtons({ child, date }:{ child: Child; date: Date }
   const ymd = toYMD(date)
   const s = app.household!.settings
 
-  const base = s.baselineTasks
-  const extra = useMemo(() => s.extraTasks.filter(t => !t.ageMin || child.age >= t.ageMin), [s.extraTasks, child.age])
+  // Deduplicate tasks by ID to prevent duplicates
+  const deduplicateById = <T extends { id: string }>(arr: T[]): T[] =>
+    Array.from(new Map(arr.map(item => [item.id, item])).values())
+
+  const base = useMemo(() => deduplicateById(s.baselineTasks.filter(t => t.childId === child.id)), [s.baselineTasks, child.id])
+  const extra = useMemo(() => deduplicateById(s.extraTasks.filter(t => t.childId === child.id && (!t.ageMin || child.age >= t.ageMin))), [s.extraTasks, child.age, child.id])
 
   const done = (code: string) => baselineDone(app.ledger, child.id, ymd, code)
   const extrasEarned = extrasEarnedOnDate(app.ledger, child.id, ymd)

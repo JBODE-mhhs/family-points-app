@@ -31,7 +31,7 @@ export default function ChildDashboard(){
   const household = app.household
   const [activeTab, setActiveTab] = useState<'tasks' | 'bank' | 'goals'>('tasks')
   useRealtimeUpdates()
-
+  
   if (!household) return (
     <div className="p-6">
       <Card>
@@ -41,7 +41,7 @@ export default function ChildDashboard(){
       </Card>
     </div>
   )
-
+  
   const child = household.children.find(c => c.id === childId)
   if (!child) return (
     <div className="p-6">
@@ -52,19 +52,16 @@ export default function ChildDashboard(){
       </Card>
     </div>
   )
-
+  
   const ymd = todayYMD()
   const balance = calcBalancePoints(app.ledger, child.id)
   const spentFromSessions = spentScreenMinutesFromSessions(app.screenTimeSessions, child.id, ymd)
   const spentFromLedger = spentScreenMinutesFromLedger(app.ledger, child.id, ymd)
   const spentToday = spentFromSessions + spentFromLedger
   const cap = getDailyCapMinutes(child, new Date(), household.settings)
-
+  
   // Check for active screen time sessions
   const activeScreenTime = app.screenTimeSessions[child.id]
-  console.log('🔵 Child dashboard - child.id:', child.id)
-  console.log('🔵 Child dashboard - activeScreenTime:', activeScreenTime)
-  console.log('🔵 Child dashboard - all sessions:', app.screenTimeSessions)
 
   return (
     <div className="space-y-6 bg-gradient-to-br from-purple-50 to-cyan-50 min-h-screen">
@@ -125,10 +122,10 @@ export default function ChildDashboard(){
       <Card className="bg-white/80 backdrop-blur-sm">
         <CardContent className="p-0">
           <div className="flex border-b border-gray-200">
-            <button
+            <button 
               className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                activeTab === 'tasks'
-                  ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50'
+                activeTab === 'tasks' 
+                  ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50' 
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
               onClick={() => setActiveTab('tasks')}
@@ -181,7 +178,7 @@ export default function ChildDashboard(){
               description="Your approved screen time session"
               className="bg-white/80 backdrop-blur-sm"
             >
-              <ScreenTimeTimer
+              <ScreenTimeTimer 
                 childId={child.id}
                 minutes={activeScreenTime.totalMinutes}
                 onComplete={() => {
@@ -198,95 +195,31 @@ export default function ChildDashboard(){
             className="bg-white/80 backdrop-blur-sm"
           >
             <div className="space-y-4">
-              {/* Show pending screen time requests */}
-              {app.ledger.filter(l =>
-                l.childId === child.id &&
-                l.date === ymd &&
-                l.code === 'SCREEN_REQUEST'
-              ).map(request => (
-                <div key={request.id} className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
-                  <div className="flex items-center space-x-2">
-                    <Clock className="h-5 w-5 text-yellow-600" />
-                    <div className="flex-1">
-                      <p className="font-semibold text-yellow-900">⏳ {request.label}</p>
-                      <p className="text-sm text-yellow-700">Pending Parent Approval</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
                   You have <strong>{balance}</strong> points available. Each minute costs <strong>{household.settings.pointPerMinute}</strong> point{household.settings.pointPerMinute !== 1 ? 's' : ''}.
                 </p>
               </div>
-
-              {/* Custom Amount Input */}
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700">Custom Amount (minutes)</label>
-                <div className="flex gap-3">
-                  <input
-                    type="number"
-                    min="1"
-                    max={Math.floor(balance / household.settings.pointPerMinute)}
-                    placeholder="Enter minutes"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-center text-lg font-semibold"
-                    id="custom-screen-time"
-                  />
-                  <Button
-                    className="bg-gradient-to-br from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white px-6"
-                    onClick={() => {
-                      const input = document.getElementById('custom-screen-time') as HTMLInputElement
-                      const minutes = parseInt(input.value || '0', 10)
-                      const cost = minutes * household.settings.pointPerMinute
-
-                      if (minutes <= 0) {
-                        alert('Please enter a valid number of minutes.')
-                        return
-                      }
-
-                      if (balance < cost) {
-                        alert(`Not enough points! You need ${cost} points but only have ${balance}.`)
-                        return
-                      }
-
-                      app.addEarn(child.id, 'SCREEN_REQUEST', `Screen time request: ${minutes}m`, 0)
-                      input.value = ''
-                    }}
-                  >
-                    Request
-                  </Button>
-                </div>
-              </div>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">or choose quick options</span>
-                </div>
-              </div>
-
+              
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {[15, 30, 60, 90, 120].map(minutes => {
                   const cost = minutes * household.settings.pointPerMinute
                   const canAfford = balance >= cost
-
+                  
                   return (
                     <Button
                       key={minutes}
                       variant={canAfford ? "default" : "outline"}
                       disabled={!canAfford}
                       className={`h-20 flex flex-col items-center justify-center space-y-1 ${
-                        canAfford
-                          ? 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white'
+                        canAfford 
+                          ? 'bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white' 
                           : 'bg-gray-100 text-gray-400'
                       }`}
                       onClick={() => {
                         if (canAfford) {
                           app.addEarn(child.id, 'SCREEN_REQUEST', `Screen time request: ${minutes}m`, 0)
-                          // Request sent - no alert needed
+                          alert('Screen time request sent to parent!')
                         } else {
                           alert(`Not enough points! You need ${cost} points but only have ${balance}.`)
                         }
@@ -319,19 +252,19 @@ function BankTab({ childId, balance }: { childId: string, balance: number }) {
   const app = useApp()
   const household = app.household!
   const [requestAmount, setRequestAmount] = useState(1)
-
+  
   const child = household.children.find(c => c.id === childId)!
   const pointsPerDollar = household.settings.pointsPerDollar
   const maxDollars = Math.min(Math.floor(Math.max(0, balance) / pointsPerDollar), child.weeklyCashCap)
-
+  
   // Get pending requests for this child
-  const pendingRequests = app.cashOutRequests.filter(r =>
+  const pendingRequests = app.cashOutRequests.filter(r => 
     r.childId === childId && r.status === 'pending'
   )
-
+  
   // Get recent requests (last 7 days)
-  const recentRequests = app.cashOutRequests.filter(r =>
-    r.childId === childId &&
+  const recentRequests = app.cashOutRequests.filter(r => 
+    r.childId === childId && 
     r.requestedAt > Date.now() - (7 * 24 * 60 * 60 * 1000)
   ).sort((a, b) => b.requestedAt - a.requestedAt)
 
@@ -350,20 +283,20 @@ function BankTab({ childId, balance }: { childId: string, balance: number }) {
               {child.weeklyCashCap > 0 && ` (Weekly limit: $${child.weeklyCashCap})`}
             </p>
           </div>
-
+          
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Amount to request ($)</label>
-              <input
-                type="number"
+              <input 
+                type="number" 
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-center text-2xl font-bold"
-                min="1"
+                min="1" 
                 max={maxDollars}
                 value={requestAmount}
                 onChange={(e) => setRequestAmount(Math.min(maxDollars, Math.max(1, parseInt(e.target.value || '1', 10))))}
               />
             </div>
-
+            
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6 text-center">
               <div className="text-sm text-gray-600 mb-2">Points cost</div>
               <div className="text-4xl font-bold text-purple-600">
@@ -371,13 +304,13 @@ function BankTab({ childId, balance }: { childId: string, balance: number }) {
               </div>
             </div>
           </div>
-
-          <Button
+          
+          <Button 
             className="w-full h-12 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white font-semibold text-lg"
             disabled={requestAmount <= 0 || requestAmount > maxDollars}
             onClick={() => {
               app.requestCashOut(childId, requestAmount)
-              // Cash-out request sent - no alert needed
+              alert(`Cash-out request for $${requestAmount} sent to parent!`)
             }}
           >
             Request ${requestAmount} Cash-Out
@@ -398,7 +331,7 @@ function BankTab({ childId, balance }: { childId: string, balance: number }) {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-semibold text-gray-900">${request.amount} ({request.points} points)</div>
+                      <div className="font-semibold text-gray-900">${request.amount} (${request.points} points)</div>
                       <div className="text-sm text-gray-500">
                         Requested {new Date(request.requestedAt).toLocaleString()}
                       </div>
@@ -427,20 +360,20 @@ function BankTab({ childId, balance }: { childId: string, balance: number }) {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-semibold text-gray-900">${request.amount} ({request.points} points)</div>
+                      <div className="font-semibold text-gray-900">${request.amount} (${request.points} points)</div>
                       <div className="text-sm text-gray-500">
                         {new Date(request.requestedAt).toLocaleString()}
                         {request.processedAt && ` • Processed ${new Date(request.processedAt).toLocaleString()}`}
                       </div>
                     </div>
-                    <Badge
+                    <Badge 
                       variant={
-                        request.status === 'approved' ? 'success' :
+                        request.status === 'approved' ? 'success' : 
                         request.status === 'rejected' ? 'destructive' : 'warning'
                       }
                     >
                       {request.status === 'approved' ? '✓ Approved' :
-                       request.status === 'rejected' ? '✗ Rejected' : '⏳ Pending'}
+                     request.status === 'rejected' ? '✗ Rejected' : '⏳ Pending'}
                     </Badge>
                   </div>
                 </CardContent>
@@ -509,8 +442,7 @@ function GoalsTab({ childId, balance, settings }: { childId: string, balance: nu
 
   // Trigger confetti for achieved goals
   useEffect(() => {
-    const goals = child.goals || []
-    goals.forEach(goal => {
+    child.goals.forEach(goal => {
       const metrics = calculateMetrics(goal)
       if (metrics.isAchieved && !celebratedGoals.includes(goal.id)) {
         // Trigger confetti
@@ -534,12 +466,24 @@ function GoalsTab({ childId, balance, settings }: { childId: string, balance: nu
     }
   }
 
-  const goals = child.goals || []
-
   return (
     <div className="space-y-6">
+      {/* Current Balance */}
+      <DashboardCard
+        title="💰 Your Savings"
+        description="Points converted to dollars"
+        className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200"
+      >
+        <div className="text-center py-6">
+          <div className="text-5xl font-bold text-green-600">
+            ${currentDollars.toFixed(2)}
+          </div>
+          <p className="text-gray-600 mt-2">{balance} points = ${currentDollars.toFixed(2)}</p>
+        </div>
+      </DashboardCard>
+
       {/* Goals List */}
-      {goals.map(goal => {
+      {child.goals.map(goal => {
         const metrics = calculateMetrics(goal)
         return (
           <DashboardCard
@@ -698,7 +642,7 @@ function GoalsTab({ childId, balance, settings }: { childId: string, balance: nu
         </DashboardCard>
       )}
 
-      {goals.length === 0 && !showAddGoal && (
+      {child.goals.length === 0 && !showAddGoal && (
         <DashboardCard
           title="🎯 No Goals Yet"
           description="Start saving for something special!"
@@ -712,3 +656,4 @@ function GoalsTab({ childId, balance, settings }: { childId: string, balance: nu
     </div>
   )
 }
+

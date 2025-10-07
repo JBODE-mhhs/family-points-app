@@ -5,11 +5,7 @@ import App from './App'
 import './styles.css'
 import { initializeScheduler } from './utils/scheduler'
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
-  })
-}
+// Service worker removed to fix blank screen issue
 
 // Initialize the daily task reset scheduler
 initializeScheduler()
